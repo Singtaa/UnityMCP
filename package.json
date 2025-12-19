@@ -1,0 +1,27 @@
+{
+    "name": "com.singtaa.unity-mcp",
+    "version": "1.0.0",
+    "displayName": "Unity MCP Server",
+    "description": "Model Context Protocol (MCP) server for Unity Editor, enabling AI assistants to interact with Unity projects.",
+    "unity": "6000.0",
+    "unityRelease": "0f1",
+    "author": {
+        "name": "Singtaa",
+        "url": "https://github.com/singtaa"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/singtaa/unity-mcp.git"
+    },
+    "keywords": [
+        "mcp",
+        "ai",
+        "claude",
+        "llm",
+        "editor",
+        "model-context-protocol"
+    ],
+    "category": "Editor",
+    "dependencies": {},
+    "samples": []
+}
