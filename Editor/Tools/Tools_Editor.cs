@@ -4,7 +4,7 @@ using UnityEditor;
 using UnityEngine;
 
 namespace UnityMcp {
-    static class Tools_Editor {
+    public static class Tools_Editor {
         public static ToolResult ExecuteMenuItem(JObject args) {
             var menuPath = args.Value<string>("menuPath");
 

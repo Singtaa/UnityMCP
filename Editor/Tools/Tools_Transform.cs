@@ -5,7 +5,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace UnityMcp {
-    static class Tools_Transform {
+    public static class Tools_Transform {
         // MARK: Get
         public static ToolResult Get(JObject args) {
             var id = args.Value<string>("target");

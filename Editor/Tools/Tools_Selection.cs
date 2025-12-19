@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 
 namespace UnityMcp {
-    static class Tools_Selection {
+    public static class Tools_Selection {
         public static ToolResult Get(JObject args) {
             var selected = Selection.gameObjects;
             var list = new List<object>();

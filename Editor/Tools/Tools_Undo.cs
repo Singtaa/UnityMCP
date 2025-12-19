@@ -3,7 +3,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 
 namespace UnityMcp {
-    static class Tools_Undo {
+    public static class Tools_Undo {
         public static ToolResult PerformUndo(JObject args) {
             Undo.PerformUndo();
             return ToolResultUtil.Text("Undo performed.");

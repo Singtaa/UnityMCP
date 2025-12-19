@@ -24,6 +24,7 @@ namespace UnityMcp {
         IntegerField _ipcPortField;
         Toggle _autoStartToggle;
         Toggle _autoConnectToggle;
+        Toggle _authEnabledToggle;
         Foldout _toolsFoldout;
         Foldout _resourcesFoldout;
 
@@ -136,6 +137,10 @@ namespace UnityMcp {
             _autoConnectToggle = new Toggle("Auto-connect bridge") { value = McpSettings.AutoConnect };
             _autoConnectToggle.RegisterValueChangedCallback(evt => McpSettings.AutoConnect = evt.newValue);
             settingsContent.Add(_autoConnectToggle);
+
+            _authEnabledToggle = new Toggle("Auth enabled") { value = McpSettings.AuthEnabled };
+            _authEnabledToggle.RegisterValueChangedCallback(evt => McpSettings.AuthEnabled = evt.newValue);
+            settingsContent.Add(_authEnabledToggle);
 
             // Start periodic refresh
             EditorApplication.update += RefreshUI;

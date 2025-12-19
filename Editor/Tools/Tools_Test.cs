@@ -11,7 +11,7 @@ namespace UnityMcp {
     /// <summary>
     /// MCP tools for running Unity tests (EditMode and PlayMode) and retrieving results.
     /// </summary>
-    static class Tools_Test {
+    public static class Tools_Test {
         // Stores test results from the last run
         static TestRunState _lastRunState;
         static readonly object _stateLock = new object();

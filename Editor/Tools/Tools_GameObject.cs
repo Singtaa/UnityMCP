@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace UnityMcp {
-    static class Tools_GameObject {
+    public static class Tools_GameObject {
         // MARK: Create
         public static ToolResult Create(JObject args) {
             var name = args.Value<string>("name") ?? "GameObject";

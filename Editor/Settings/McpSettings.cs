@@ -153,5 +153,13 @@ namespace UnityMcp {
             _instance = new McpSettings();
             Save();
         }
+
+        /// <summary>
+        /// Force reload settings from disk. Call this after external changes to the settings file.
+        /// </summary>
+        public static void Reload() {
+            _instance = null;
+            Load();
+        }
     }
 }

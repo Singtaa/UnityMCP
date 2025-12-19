@@ -6,7 +6,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine.SceneManagement;
 
 namespace UnityMcp {
-    static class Tools_Scene {
+    public static class Tools_Scene {
         public static ToolResult List(JObject args) {
             var list = new List<object>();
 

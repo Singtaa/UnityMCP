@@ -9,7 +9,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace UnityMcp {
-    static class Tools_Component {
+    public static class Tools_Component {
         // MARK: List
         public static ToolResult List(JObject args) {
             var id = args.Value<string>("target");

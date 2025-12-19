@@ -178,6 +178,9 @@ namespace UnityMcp {
                     CreateNoWindow = true
                 };
 
+                // Ensure PATH includes the node/npm directory
+                EnsureNodeInPath(psi);
+
                 using (var process = Process.Start(psi)) {
                     if (process == null) return false;
 
@@ -231,6 +234,9 @@ namespace UnityMcp {
                     RedirectStandardError = true,
                     CreateNoWindow = true
                 };
+
+                // Ensure PATH includes the node directory
+                EnsureNodeInPath(psi);
 
                 // Set environment variables
                 psi.Environment["MCP_HTTP_PORT"] = McpSettings.HttpPort.ToString();
@@ -342,6 +348,26 @@ namespace UnityMcp {
             }
 
             return "npm";
+        }
+
+        static void EnsureNodeInPath(ProcessStartInfo psi) {
+            if (Application.platform == RuntimePlatform.WindowsEditor) return;
+
+            var nodePath = GetNodeExecutable();
+            if (nodePath == "node") return;
+
+            var nodeDir = Path.GetDirectoryName(nodePath);
+            if (string.IsNullOrEmpty(nodeDir)) return;
+
+            // Get current PATH or use a sensible default
+            var currentPath = psi.Environment.ContainsKey("PATH")
+                ? psi.Environment["PATH"]
+                : Environment.GetEnvironmentVariable("PATH") ?? "/usr/bin:/bin:/usr/sbin:/sbin";
+
+            // Prepend the node directory to PATH
+            if (!currentPath.Contains(nodeDir)) {
+                psi.Environment["PATH"] = $"{nodeDir}:{currentPath}";
+            }
         }
     }
 }
