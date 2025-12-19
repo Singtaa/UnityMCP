@@ -735,11 +735,96 @@ const _defs = [
         inputSchema: {
             type: "object",
             properties: {
-                runId: { 
-                    type: "string", 
-                    description: "The runId returned from unity_test_run. Omit to get results from the most recent run." 
+                runId: {
+                    type: "string",
+                    description: "The runId returned from unity_test_run. Omit to get results from the most recent run."
                 },
             },
+            additionalProperties: false,
+        },
+    },
+
+    // MARK: Prefab
+    {
+        safeName: "unity_prefab_load",
+        bridgeName: "unity.prefab.load",
+        description: "Load a prefab asset for inspection/editing. Returns the prefab's root GameObject info and component list. Use unity_component_get_properties/set_property with the returned instanceId to edit.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                path: {
+                    type: "string",
+                    description: "Asset path to the prefab (e.g., 'Assets/Prefabs/Player.prefab')"
+                },
+            },
+            required: ["path"],
+            additionalProperties: false,
+        },
+    },
+    {
+        safeName: "unity_prefab_save",
+        bridgeName: "unity.prefab.save",
+        description: "Save changes to a prefab asset. Call after modifying prefab components via unity_component_set_property.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                path: {
+                    type: "string",
+                    description: "Asset path to the prefab. Can be omitted if instanceId is provided."
+                },
+                instanceId: {
+                    type: "integer",
+                    description: "Instance ID of the prefab root GameObject (from unity_prefab_load)."
+                },
+            },
+            additionalProperties: false,
+        },
+    },
+    {
+        safeName: "unity_prefab_get_hierarchy",
+        bridgeName: "unity.prefab.getHierarchy",
+        description: "Get the full hierarchy of a prefab, including all children and their components.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                path: {
+                    type: "string",
+                    description: "Asset path to the prefab."
+                },
+                instanceId: {
+                    type: "integer",
+                    description: "Instance ID of the prefab root GameObject."
+                },
+                maxDepth: {
+                    type: "integer",
+                    default: 10,
+                    description: "Maximum depth to traverse (default: 10)."
+                },
+            },
+            additionalProperties: false,
+        },
+    },
+    {
+        safeName: "unity_prefab_find_component",
+        bridgeName: "unity.prefab.findComponent",
+        description: "Find a component within a prefab by child path and type. Returns the component's properties.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                prefabPath: {
+                    type: "string",
+                    description: "Asset path to the prefab."
+                },
+                childPath: {
+                    type: "string",
+                    description: "Path to child within prefab (e.g., 'Armature/Hips/Spine'). Omit for root."
+                },
+                type: {
+                    type: "string",
+                    description: "Component type name (e.g., 'MeshRenderer', 'Animator')."
+                },
+            },
+            required: ["prefabPath", "type"],
             additionalProperties: false,
         },
     },

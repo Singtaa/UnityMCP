@@ -125,6 +125,12 @@ namespace UnityMcp {
                 ["unity.test.run"] = Tools_Test.RunTests,
                 ["unity.test.runSync"] = Tools_Test.RunTestsSync,
                 ["unity.test.getResults"] = Tools_Test.GetResults,
+
+                // Prefab
+                ["unity.prefab.load"] = Tools_Prefab.Load,
+                ["unity.prefab.save"] = Tools_Prefab.Save,
+                ["unity.prefab.getHierarchy"] = Tools_Prefab.GetHierarchy,
+                ["unity.prefab.findComponent"] = Tools_Prefab.FindComponent,
             };
         }
 

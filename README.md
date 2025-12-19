@@ -7,7 +7,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Un
 
 ## Features
 
-- **68 Tools** for manipulating scenes, GameObjects, components, transforms, and more
+- **72 Tools** for manipulating scenes, GameObjects, components, prefabs, transforms, and more
 - **MCP Resources** for live access to console logs, scene hierarchy, test results, and project files
 - **Auto-start Node.js server** - no manual setup required
 - **Editor Window** for monitoring and configuration
@@ -92,6 +92,12 @@ Settings are stored in `ProjectSettings/McpSettings.json`:
 - `unity_editor_get_state` - Get editor state
 - `unity_editor_pause/step` - Playmode control
 - `unity_undo_*` - Undo/redo operations
+
+### Prefab Operations
+- `unity_prefab_load` - Load a prefab asset for inspection/editing
+- `unity_prefab_save` - Save changes to a prefab
+- `unity_prefab_get_hierarchy` - Get full prefab hierarchy
+- `unity_prefab_find_component` - Find component within prefab by path
 
 ### Testing
 - `unity_test_list` - List available tests

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Prefab tools** for editing prefab assets:
+  - `unity_prefab_load` - Load prefab for inspection/editing
+  - `unity_prefab_save` - Save prefab changes
+  - `unity_prefab_get_hierarchy` - Get full prefab hierarchy with components
+  - `unity_prefab_find_component` - Find component by child path and type
+- **ObjectReference support** in `unity_component_set_property`:
+  - Set references by instanceId (integer)
+  - Set references by assetPath (string)
+  - Set references using `{instanceId: int}` or `{assetPath: string}` object format
+  - Clear references by setting to null
+
 ## [1.0.0] - 2025-01-XX
 
 ### Added

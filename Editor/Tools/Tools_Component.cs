@@ -380,6 +380,62 @@ namespace UnityMcp {
                         }
                         error = $"Invalid enum value. Valid: {string.Join(", ", prop.enumNames)}";
                         return false;
+                    case SerializedPropertyType.ObjectReference:
+                        // Accept null to clear reference
+                        if (value == null || value.Type == JTokenType.Null) {
+                            prop.objectReferenceValue = null;
+                            return true;
+                        }
+                        // Accept instanceId as integer
+                        if (value.Type == JTokenType.Integer) {
+                            var instanceId = value.Value<int>();
+                            var obj = EditorUtility.InstanceIDToObject(instanceId);
+                            if (obj == null) {
+                                error = $"No object found with instanceId: {instanceId}";
+                                return false;
+                            }
+                            prop.objectReferenceValue = obj;
+                            return true;
+                        }
+                        // Accept object with instanceId property
+                        if (value.Type == JTokenType.Object) {
+                            var idToken = value["instanceId"];
+                            if (idToken != null && idToken.Type == JTokenType.Integer) {
+                                var instanceId = idToken.Value<int>();
+                                var obj = EditorUtility.InstanceIDToObject(instanceId);
+                                if (obj == null) {
+                                    error = $"No object found with instanceId: {instanceId}";
+                                    return false;
+                                }
+                                prop.objectReferenceValue = obj;
+                                return true;
+                            }
+                            // Accept object with assetPath property
+                            var pathToken = value["assetPath"];
+                            if (pathToken != null && pathToken.Type == JTokenType.String) {
+                                var assetPath = pathToken.Value<string>();
+                                var obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+                                if (obj == null) {
+                                    error = $"No asset found at path: {assetPath}";
+                                    return false;
+                                }
+                                prop.objectReferenceValue = obj;
+                                return true;
+                            }
+                        }
+                        // Accept string as asset path
+                        if (value.Type == JTokenType.String) {
+                            var assetPath = value.Value<string>();
+                            var obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+                            if (obj == null) {
+                                error = $"No asset found at path: {assetPath}";
+                                return false;
+                            }
+                            prop.objectReferenceValue = obj;
+                            return true;
+                        }
+                        error = "ObjectReference requires instanceId (int), assetPath (string), or {instanceId: int} / {assetPath: string}";
+                        return false;
                     default:
                         error = $"Cannot set property type: {prop.propertyType}";
                         return false;
