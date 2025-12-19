@@ -35,10 +35,10 @@ namespace UnityMcp {
             try {
                 if (System.IO.File.Exists(LockFilePath)) {
                     System.IO.File.Delete(LockFilePath);
-                    Debug.Log("[UnityMcp] Cleaned up stale lock file");
+                    if (McpSettings.VerboseLogging) Debug.Log("[UnityMcp] Cleaned up stale lock file");
                 }
             } catch (Exception e) {
-                Debug.LogWarning($"[UnityMcp] Failed to cleanup lock file: {e.Message}");
+                if (McpSettings.VerboseLogging) Debug.LogWarning($"[UnityMcp] Failed to cleanup lock file: {e.Message}");
             }
         }
 
@@ -67,6 +67,12 @@ namespace UnityMcp {
         DateTime _lastConnectLog = DateTime.MinValue;
         DateTime _lastDisconnectLog = DateTime.MinValue;
         const double LogRateLimitSeconds = 2.0;
+
+        // Track consecutive connection failures to detect dead server
+        int _consecutiveFailures = 0;
+        const int FailuresBeforeServerCheck = 3;
+
+        public static event Action OnServerUnreachable;
 
         // Unique client ID for tracking/debugging
         readonly string _clientId = Guid.NewGuid().ToString("N").Substring(0, 8);
@@ -100,18 +106,24 @@ namespace UnityMcp {
         void ClaimLockFile() {
             try {
                 System.IO.File.WriteAllText(LockFilePath, _clientId);
-            } catch {
-                // Ignore errors - lock file is best-effort
+            } catch (Exception e) {
+                if (McpSettings.VerboseLogging) Debug.LogWarning($"[UnityMcp] Failed to claim lock file: {e.Message}");
             }
         }
 
         bool IsActiveClient() {
+            // If no lock file exists, this client should claim it
+            // This handles the race condition where the file hasn't been created yet
             try {
-                if (!System.IO.File.Exists(LockFilePath)) return false;
+                if (!System.IO.File.Exists(LockFilePath)) {
+                    // Try to claim it - we might be the first client after cleanup
+                    ClaimLockFile();
+                    return true;
+                }
                 var lockId = System.IO.File.ReadAllText(LockFilePath).Trim();
                 return lockId == _clientId;
             } catch {
-                return false;
+                return true;  // On error, assume we're active to avoid stopping prematurely
             }
         }
 
@@ -187,7 +199,7 @@ namespace UnityMcp {
                 } catch (ObjectDisposedException) {
                     return;
                 } catch (Exception e) {
-                    if (!_disposed && !ShouldStop) {
+                    if (!_disposed && !ShouldStop && McpSettings.VerboseLogging) {
                         Debug.LogWarning($"[UnityMcp] Socket error: {e.Message}");
                     }
                     CloseSocket();
@@ -227,7 +239,10 @@ namespace UnityMcp {
         void TryConnectOnce() {
             CloseSocket();
 
-            if (_disposed || _stopEvent.IsSet || ShouldStop) return;
+            if (_disposed || _stopEvent.IsSet || ShouldStop) {
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] TryConnectOnce: skipping (disposed={_disposed}, stopSet={_stopEvent.IsSet}, shouldStop={ShouldStop})");
+                return;
+            }
 
             var c = new TcpClient();
             c.NoDelay = true;
@@ -242,13 +257,24 @@ namespace UnityMcp {
                 _connectingClient = c;
             }
 
+            if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] TryConnectOnce: attempting connection to {_host}:{_port}");
+
             try {
                 c.Connect(_host, _port);
+                _consecutiveFailures = 0;  // Reset on successful connect
             } catch (ObjectDisposedException) {
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] TryConnectOnce: ObjectDisposedException");
                 return;
             } catch (Exception e) {
+                _consecutiveFailures++;
                 if (!_disposed && !ShouldStop) {
-                    LogRateLimited(ref _lastConnectLog, $"[UnityMcp] Connect failed: {e.Message}");
+                    if (McpSettings.VerboseLogging) LogRateLimited(ref _lastConnectLog, $"[UnityMcp] Connect failed: {e.Message}");
+
+                    // After several failures, notify that server might be dead
+                    if (_consecutiveFailures == FailuresBeforeServerCheck) {
+                        if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] {FailuresBeforeServerCheck} consecutive connection failures, server may be unreachable");
+                        MainThreadDispatcher.Enqueue(() => OnServerUnreachable?.Invoke());
+                    }
                 }
                 lock (_connectingLock) { _connectingClient = null; }
                 try { c.Close(); } catch { }
@@ -258,6 +284,7 @@ namespace UnityMcp {
             lock (_connectingLock) { _connectingClient = null; }
 
             if (_disposed || _stopEvent.IsSet || ShouldStop) {
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] TryConnectOnce: connected but stopping");
                 try { c.Close(); } catch { }
                 return;
             }
@@ -271,6 +298,7 @@ namespace UnityMcp {
                 _stream = c.GetStream();
             }
 
+            Debug.Log($"[UnityMcp] Bridge connected");
             SendHello();
         }
 
@@ -318,7 +346,7 @@ namespace UnityMcp {
                 }
 
                 if (n <= 0) {
-                    if (!ShouldStop) {
+                    if (!ShouldStop && McpSettings.VerboseLogging) {
                         LogRateLimited(ref _lastDisconnectLog, "[UnityMcp] Server disconnected.");
                     }
                     CloseSocket();
@@ -344,7 +372,7 @@ namespace UnityMcp {
                     }
                 } else if (ch != '\r') {
                     if (_lineBuf.Length >= MaxLineLength) {
-                        Debug.LogWarning($"[UnityMcp] Line exceeded {MaxLineLength} bytes, discarding.");
+                        if (McpSettings.VerboseLogging) Debug.LogWarning($"[UnityMcp] Line exceeded {MaxLineLength} bytes, discarding.");
                         _lineBuf.Length = 0;
                         CloseSocket();
                         return;
@@ -412,7 +440,7 @@ namespace UnityMcp {
                     });
                 }
             } catch (Exception e) {
-                if (!_disposed) {
+                if (!_disposed && McpSettings.VerboseLogging) {
                     Debug.LogWarning($"[UnityMcp] Bad message: {e.Message}");
                 }
             }

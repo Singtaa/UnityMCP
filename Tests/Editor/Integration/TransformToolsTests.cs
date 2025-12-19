@@ -45,7 +45,8 @@ namespace UnityMcp.Tests {
             _testObject.transform.SetParent(parent.transform);
             _testObject.transform.localPosition = new Vector3(1, 2, 3);
 
-            var args = new JObject { ["target"] = "TestObject", ["space"] = "local" };
+            // Use full path since TestObject is now a child of Parent
+            var args = new JObject { ["target"] = "Parent/TestObject", ["space"] = "local" };
             var result = Tools_Transform.Get(args);
 
             Assert.IsFalse(result.isError);
@@ -123,15 +124,15 @@ namespace UnityMcp.Tests {
 
             var args = new JObject {
                 ["target"] = "TestObject",
-                ["delta"] = new JArray { 1, 0, 0 },
+                ["delta"] = new JArray { 0, 0, 1 },
                 ["space"] = "self"
             };
 
             var result = Tools_Transform.Translate(args);
 
             Assert.IsFalse(result.isError);
-            // Moving forward (local X) when rotated 90 degrees should move in world Z
-            Assert.AreEqual(1f, _testObject.transform.position.z, 0.001f);
+            // Moving in local +Z when rotated 90° around Y should move in world +X
+            Assert.AreEqual(1f, _testObject.transform.position.x, 0.001f);
         }
 
         [Test]

@@ -31,6 +31,7 @@ namespace UnityMcp {
         [SerializeField] bool autoConnect = true;
         [SerializeField] bool authEnabled = true;
         [SerializeField] string authToken = "";
+        [SerializeField] bool verboseLogging = false;
 
         // MARK: Public Properties
         public static int HttpPort {
@@ -104,6 +105,16 @@ namespace UnityMcp {
             set {
                 if (Instance.authToken != value) {
                     Instance.authToken = value;
+                    Save();
+                }
+            }
+        }
+
+        public static bool VerboseLogging {
+            get => Instance.verboseLogging;
+            set {
+                if (Instance.verboseLogging != value) {
+                    Instance.verboseLogging = value;
                     Save();
                 }
             }

@@ -46,6 +46,15 @@ class BridgeHub {
 
     start() {
         this._server = net.createServer((sock) => this._onConnection(sock))
+
+        this._server.on("error", (err) => {
+            console.error(`[bridge] server error: ${err.code} - ${err.message}`)
+        })
+
+        this._server.on("close", () => {
+            console.log(`[bridge] server closed`)
+        })
+
         this._server.listen(this._port, this._host, () => {
             console.log(`[bridge] listening on tcp://${this._host}:${this._port}`)
         })
@@ -123,8 +132,11 @@ class BridgeHub {
                     const isNewer = newHelloUtc >= currentHelloUtc
                     const isSameClient = msg.clientId === this._lastClientId
 
+                    console.log(`[bridge] hello from clientId=${msg.clientId}, noExisting=${noExistingBridge}, isNewer=${isNewer}, isSame=${isSameClient}`)
+
                     if (noExistingBridge || isNewer || isSameClient) {
                         if (this._bridge && !this._bridge.destroyed) {
+                            console.log(`[bridge] replacing old connection (clientId=${this._lastClientId})`)
                             try { this._bridge.removeAllListeners(); this._bridge.destroy() } catch { }
                         }
 
@@ -137,6 +149,7 @@ class BridgeHub {
                         console.log(`[bridge] connected: clientId=${msg.clientId}`)
                     } else {
                         // Reject zombie connection with older timestamp
+                        console.log(`[bridge] rejecting zombie connection: clientId=${msg.clientId}`)
                         try { thisSock.destroy() } catch { }
                     }
                     return

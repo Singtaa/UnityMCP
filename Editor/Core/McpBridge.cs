@@ -64,19 +64,36 @@ namespace UnityMcp {
             }
 
             // Start Node.js server if auto-start is enabled
+            // This also detects if server survived domain reload
             if (McpSettings.AutoStart) {
                 var serverStarted = await NodeProcessManager.EnsureServerRunning();
                 if (!serverStarted) {
                     Debug.LogWarning("[UnityMcp] Failed to start Node.js server. MCP bridge will wait for manual server start.");
                 }
+            } else {
+                // Even if auto-start is disabled, check if server is running (survived domain reload)
+                await NodeProcessManager.CheckServerReachable();
             }
 
             // Connect TCP client if auto-connect is enabled
             if (McpSettings.AutoConnect) {
                 lock (_startLock) {
+                    // Subscribe to server unreachable event
+                    McpTcpClient.OnServerUnreachable -= OnServerUnreachable;
+                    McpTcpClient.OnServerUnreachable += OnServerUnreachable;
+
                     _client = new McpTcpClient(McpSettings.Host, McpSettings.IpcPort);
                     _client.Start();
                 }
+            }
+        }
+
+        static async void OnServerUnreachable() {
+            // Server might have died - run health check and possibly restart
+            var stillRunning = await NodeProcessManager.HealthCheck();
+            if (!stillRunning && McpSettings.AutoStart) {
+                if (McpSettings.VerboseLogging) Debug.Log("[UnityMcp] Server died, attempting restart...");
+                await NodeProcessManager.EnsureServerRunning();
             }
         }
 

@@ -75,17 +75,13 @@ namespace UnityMcp.Tests {
         }
 
         [Test]
-        public void Save_AllScenes_Succeeds() {
-            // Create a new scene so we have something to save
-            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            new GameObject("TestObject"); // Mark as dirty
-
-            var args = new JObject();
+        public void Save_NonExistentScene_ReturnsError() {
+            var args = new JObject { ["scene"] = "NonExistentScene" };
 
             var result = Tools_Scene.Save(args);
 
-            // This may fail if scene isn't saved to disk yet, which is expected
-            Assert.IsNotNull(result);
+            Assert.IsTrue(result.isError);
+            Assert.That(result.content[0].text, Does.Contain("not found"));
         }
     }
 }

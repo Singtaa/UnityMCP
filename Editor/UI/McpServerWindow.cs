@@ -25,6 +25,7 @@ namespace UnityMcp {
         Toggle _autoStartToggle;
         Toggle _autoConnectToggle;
         Toggle _authEnabledToggle;
+        Toggle _verboseLoggingToggle;
         Foldout _toolsFoldout;
         Foldout _resourcesFoldout;
 
@@ -37,10 +38,18 @@ namespace UnityMcp {
 
         void CreateGUI() {
             var root = rootVisualElement;
-            root.style.paddingLeft = 10;
-            root.style.paddingRight = 10;
-            root.style.paddingTop = 10;
-            root.style.paddingBottom = 10;
+
+            // Wrap everything in a ScrollView to handle overflow
+            var scrollView = new ScrollView(ScrollViewMode.Vertical) {
+                style = {
+                    flexGrow = 1,
+                    paddingLeft = 10,
+                    paddingRight = 10,
+                    paddingTop = 10,
+                    paddingBottom = 10
+                }
+            };
+            root.Add(scrollView);
 
             // Status header
             var statusHeader = new VisualElement {
@@ -69,10 +78,10 @@ namespace UnityMcp {
                 style = { fontSize = 14, unityFontStyleAndWeight = FontStyle.Bold }
             };
             statusHeader.Add(_statusLabel);
-            root.Add(statusHeader);
+            scrollView.Add(statusHeader);
 
             // Server section
-            root.Add(CreateSection("Node Server", out var serverContent));
+            scrollView.Add(CreateSection("Node Server", out var serverContent));
             serverContent.Add(CreateLabelRow("Status:", out _serverStatusLabel));
             serverContent.Add(CreateLabelRow("Port:", out var portLabel));
             portLabel.text = McpSettings.HttpPort.ToString();
@@ -92,7 +101,7 @@ namespace UnityMcp {
             serverContent.Add(serverButtons);
 
             // Bridge section
-            root.Add(CreateSection("Unity Bridge", out var bridgeContent));
+            scrollView.Add(CreateSection("Unity Bridge", out var bridgeContent));
             bridgeContent.Add(CreateLabelRow("Status:", out _bridgeStatusLabel));
             bridgeContent.Add(CreateLabelRow("Client ID:", out _clientIdLabel));
             bridgeContent.Add(CreateLabelRow("Uptime:", out _uptimeLabel));
@@ -108,19 +117,21 @@ namespace UnityMcp {
             // Tools foldout
             _toolsFoldout = new Foldout {
                 text = "Tools (loading...)",
+                value = false,
                 style = { marginTop = 10 }
             };
-            root.Add(_toolsFoldout);
+            scrollView.Add(_toolsFoldout);
 
             // Resources foldout
             _resourcesFoldout = new Foldout {
                 text = "Resources (loading...)",
+                value = false,
                 style = { marginTop = 5 }
             };
-            root.Add(_resourcesFoldout);
+            scrollView.Add(_resourcesFoldout);
 
             // Settings section
-            root.Add(CreateSection("Settings", out var settingsContent));
+            scrollView.Add(CreateSection("Settings", out var settingsContent));
 
             _httpPortField = new IntegerField("HTTP Port") { value = McpSettings.HttpPort };
             _httpPortField.RegisterValueChangedCallback(evt => McpSettings.HttpPort = evt.newValue);
@@ -141,6 +152,10 @@ namespace UnityMcp {
             _authEnabledToggle = new Toggle("Auth enabled") { value = McpSettings.AuthEnabled };
             _authEnabledToggle.RegisterValueChangedCallback(evt => McpSettings.AuthEnabled = evt.newValue);
             settingsContent.Add(_authEnabledToggle);
+
+            _verboseLoggingToggle = new Toggle("Verbose logging") { value = McpSettings.VerboseLogging };
+            _verboseLoggingToggle.RegisterValueChangedCallback(evt => McpSettings.VerboseLogging = evt.newValue);
+            settingsContent.Add(_verboseLoggingToggle);
 
             // Start periodic refresh
             EditorApplication.update += RefreshUI;
@@ -226,7 +241,11 @@ namespace UnityMcp {
             }
 
             // Server status
-            _serverStatusLabel.text = serverRunning ? "Running" : (NodeProcessManager.IsStarting ? "Starting..." : "Stopped");
+            if (serverRunning) {
+                _serverStatusLabel.text = NodeProcessManager.IsExternalServer ? "Running (external)" : "Running";
+            } else {
+                _serverStatusLabel.text = NodeProcessManager.IsStarting ? "Starting..." : "Stopped";
+            }
 
             // Bridge status
             _bridgeStatusLabel.text = bridgeConnected ? "Connected" : "Disconnected";
@@ -250,8 +269,8 @@ namespace UnityMcp {
 
             // Button states
             _startButton.SetEnabled(!serverRunning && !NodeProcessManager.IsStarting);
-            _stopButton.SetEnabled(serverRunning);
-            _reconnectButton.SetEnabled(serverRunning);
+            _stopButton.SetEnabled(serverRunning && !NodeProcessManager.IsExternalServer);  // Can't stop external server
+            _reconnectButton.SetEnabled(serverRunning && !bridgeConnected);  // Enable when server running but bridge disconnected
         }
 
         void PopulateToolsList() {
@@ -302,7 +321,6 @@ namespace UnityMcp {
 
         void OnCopyToken() {
             EditorGUIUtility.systemCopyBuffer = McpSettings.AuthToken;
-            Debug.Log("[UnityMcp] Auth token copied to clipboard");
         }
     }
 }

@@ -10,23 +10,137 @@ namespace UnityMcp {
     /// <summary>
     /// Manages the Node.js MCP server process lifecycle.
     /// Handles automatic startup, npm install, and graceful shutdown.
+    ///
+    /// DOMAIN RELOAD HANDLING:
+    /// We persist the server PID to EditorPrefs so we can reattach to it after domain reload.
+    /// This allows Unity to maintain control of the server process across reloads.
     /// </summary>
     public static class NodeProcessManager {
         static Process _serverProcess;
         static string _serverPath;
         static bool _isStarting;
+        static bool _externalServerDetected;  // Server running but not started by us (e.g., manually started)
 
-        public static bool IsRunning => _serverProcess != null && !_serverProcess.HasExited;
+        const string PidPrefKey = "UnityMcp_ServerPid";
+
+        public static bool IsRunning => (_serverProcess != null && !_serverProcess.HasExited) || _externalServerDetected;
         public static bool IsStarting => _isStarting;
         public static string ServerPath => _serverPath;
+        public static bool IsExternalServer => _externalServerDetected && _serverProcess == null;
 
         public static event Action OnServerStarted;
         public static event Action OnServerStopped;
         public static event Action<string> OnServerOutput;
         public static event Action<string> OnServerError;
 
+        /// <summary>
+        /// Try to reattach to a server process that was started before domain reload.
+        /// Returns true if successfully reattached.
+        /// </summary>
+        public static bool TryReattachToProcess() {
+            if (_serverProcess != null) return true;  // Already have a process
+
+            var savedPid = EditorPrefs.GetInt(PidPrefKey, -1);
+            if (savedPid <= 0) return false;
+
+            try {
+                var process = Process.GetProcessById(savedPid);
+
+                // Verify it's actually our Node server (check process name)
+                if (process.HasExited) {
+                    if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Saved process {savedPid} has exited, clearing PID");
+                    ClearSavedPid();
+                    return false;
+                }
+
+                // Check if it looks like a Node process
+                var processName = process.ProcessName.ToLowerInvariant();
+                if (!processName.Contains("node")) {
+                    if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Process {savedPid} is not Node ({processName}), clearing PID");
+                    ClearSavedPid();
+                    return false;
+                }
+
+                _serverProcess = process;
+                _externalServerDetected = false;  // It's OUR process, not external
+
+                // Re-register exit handler
+                _serverProcess.EnableRaisingEvents = true;
+                _serverProcess.Exited += (s, e) => {
+                    if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Server process exited");
+                    _serverProcess = null;
+                    ClearSavedPid();
+                    if (!_externalServerDetected) {
+                        OnServerStopped?.Invoke();
+                    }
+                };
+
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Reattached to server process (PID {savedPid})");
+                OnServerStarted?.Invoke();
+                return true;
+            } catch (ArgumentException) {
+                // Process with this PID doesn't exist
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Process {savedPid} no longer exists, clearing PID");
+                ClearSavedPid();
+                return false;
+            } catch (Exception e) {
+                if (McpSettings.VerboseLogging) Debug.LogWarning($"[UnityMcp] Failed to reattach to process {savedPid}: {e.Message}");
+                ClearSavedPid();
+                return false;
+            }
+        }
+
+        static void SavePid(int pid) {
+            EditorPrefs.SetInt(PidPrefKey, pid);
+        }
+
+        static void ClearSavedPid() {
+            EditorPrefs.DeleteKey(PidPrefKey);
+        }
+
+        /// <summary>
+        /// Check if the server ports are reachable. Useful for detecting external servers after domain reload.
+        /// We check the IPC port since that's what Unity connects to.
+        /// </summary>
+        public static async Task<bool> CheckServerReachable() {
+            // Check IPC port (TCP bridge) - this is what Unity actually connects to
+            var ipcReachable = await IsPortInUse(McpSettings.IpcPort);
+            if (ipcReachable && !IsRunning) {
+                _externalServerDetected = true;
+                OnServerStarted?.Invoke();
+            } else if (!ipcReachable && _externalServerDetected) {
+                if (McpSettings.VerboseLogging) Debug.Log("[UnityMcp] External server no longer reachable, clearing flag");
+                _externalServerDetected = false;
+                OnServerStopped?.Invoke();
+            }
+            return ipcReachable;
+        }
+
+        /// <summary>
+        /// Periodic health check - call this to verify server is still running.
+        /// If not, clears the external server flag so we can restart.
+        /// </summary>
+        public static async Task<bool> HealthCheck() {
+            // If we think an external server is running, verify it
+            if (_externalServerDetected && _serverProcess == null) {
+                var stillReachable = await IsPortInUse(McpSettings.IpcPort);
+                if (!stillReachable) {
+                    if (McpSettings.VerboseLogging) Debug.Log("[UnityMcp] Health check: external server died, clearing flag");
+                    _externalServerDetected = false;
+                    OnServerStopped?.Invoke();
+                    return false;
+                }
+            }
+            return IsRunning;
+        }
+
         // MARK: Public API
         public static async Task<bool> EnsureServerRunning() {
+            // First, try to reattach to a process we started before domain reload
+            if (TryReattachToProcess()) {
+                return true;
+            }
+
             if (IsRunning) return true;
             if (_isStarting) return false;
 
@@ -57,14 +171,17 @@ namespace UnityMcp {
                     Debug.Log("[UnityMcp] Dependencies installed successfully");
                 }
 
-                // 4. Check if server already running (another Unity instance?)
-                if (await IsPortInUse(McpSettings.HttpPort)) {
-                    Debug.Log($"[UnityMcp] Server already running on port {McpSettings.HttpPort}");
+                // 4. Check if server already running (survived domain reload or another Unity instance)
+                // We check the IPC port since that's what Unity connects to
+                if (await IsPortInUse(McpSettings.IpcPort)) {
+                    if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Server already running (IPC port {McpSettings.IpcPort} in use)");
+                    _externalServerDetected = true;
+                    OnServerStarted?.Invoke();
                     return true;
                 }
 
-                // 5. Start server
-                return StartServer();
+                // 5. Start new server
+                return await StartServerAsync();
             } finally {
                 _isStarting = false;
             }
@@ -85,6 +202,8 @@ namespace UnityMcp {
                 _serverProcess = null;
             }
 
+            ClearSavedPid();
+            _externalServerDetected = false;
             OnServerStopped?.Invoke();
         }
 
@@ -154,8 +273,10 @@ namespace UnityMcp {
                     process.WaitForExit(5000);
 
                     if (process.ExitCode == 0) {
-                        var version = output.Trim();
-                        Debug.Log($"[UnityMcp] Found Node.js {version}");
+                        if (McpSettings.VerboseLogging) {
+                            var version = output.Trim();
+                            Debug.Log($"[UnityMcp] Found Node.js {version}");
+                        }
                         return true;
                     }
                 }
@@ -206,24 +327,35 @@ namespace UnityMcp {
         }
 
         static async Task<bool> IsPortInUse(int port) {
+            System.Net.Sockets.TcpClient client = null;
             try {
-                using (var client = new System.Net.Sockets.TcpClient()) {
-                    var connectTask = client.ConnectAsync("127.0.0.1", port);
-                    var timeoutTask = Task.Delay(1000);
+                client = new System.Net.Sockets.TcpClient();
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Checking if port {port} is in use...");
+                var connectTask = client.ConnectAsync("127.0.0.1", port);
+                var timeoutTask = Task.Delay(1000);
 
-                    var completedTask = await Task.WhenAny(connectTask, timeoutTask);
-                    if (completedTask == connectTask && client.Connected) {
-                        return true;
-                    }
+                var completedTask = await Task.WhenAny(connectTask, timeoutTask);
+                if (completedTask == connectTask && client.Connected) {
+                    // Connection succeeded - port is in use by a listening server
+                    if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Port {port} check: connected successfully, server is running");
+                    return true;
                 }
-            } catch {
-                // Port not in use or connection refused
+                // Timeout - treat as not in use
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Port {port} check: timeout, no server");
+                return false;
+            } catch (System.Net.Sockets.SocketException ex) {
+                // Connection refused means nothing is listening
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Port {port} check: {ex.SocketErrorCode}");
+                return false;
+            } catch (Exception ex) {
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Port {port} check: exception {ex.GetType().Name}: {ex.Message}");
+                return false;
+            } finally {
+                try { client?.Close(); } catch { }
             }
-
-            return false;
         }
 
-        static bool StartServer() {
+        static async Task<bool> StartServerAsync() {
             try {
                 var psi = new ProcessStartInfo {
                     FileName = GetNodeExecutable(),
@@ -250,24 +382,56 @@ namespace UnityMcp {
                     return false;
                 }
 
+                // Save PID for reattachment after domain reload
+                SavePid(_serverProcess.Id);
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Started server process (PID {_serverProcess.Id})");
+
+                // Track whether server started successfully or failed
+                var startupTcs = new TaskCompletionSource<bool>();
+                var startupComplete = false;
+
                 _serverProcess.OutputDataReceived += (s, e) => {
                     if (!string.IsNullOrEmpty(e.Data)) {
-                        Debug.Log($"[MCP Server] {e.Data}");
+                        if (McpSettings.VerboseLogging) Debug.Log($"[MCP Server] {e.Data}");
                         OnServerOutput?.Invoke(e.Data);
+
+                        // Server successfully started when we see the bridge listening message
+                        if (!startupComplete && e.Data.Contains("[bridge] listening")) {
+                            startupComplete = true;
+                            startupTcs.TrySetResult(true);
+                        }
                     }
                 };
 
                 _serverProcess.ErrorDataReceived += (s, e) => {
                     if (!string.IsNullOrEmpty(e.Data)) {
-                        Debug.LogWarning($"[MCP Server] {e.Data}");
+                        if (McpSettings.VerboseLogging) Debug.LogWarning($"[MCP Server] {e.Data}");
                         OnServerError?.Invoke(e.Data);
+
+                        // Check for port already in use error
+                        if (!startupComplete && (e.Data.Contains("EADDRINUSE") || e.Data.Contains("address already in use"))) {
+                            startupComplete = true;
+                            // Port is in use by another server - that's okay, mark as external
+                            if (McpSettings.VerboseLogging) Debug.Log("[UnityMcp] Port already in use by another server, treating as external");
+                            _externalServerDetected = true;
+                            startupTcs.TrySetResult(true);
+                        }
                     }
                 };
 
                 _serverProcess.EnableRaisingEvents = true;
                 _serverProcess.Exited += (s, e) => {
-                    Debug.Log("[UnityMcp] Server process exited");
-                    OnServerStopped?.Invoke();
+                    var exitCode = -1;
+                    try { exitCode = _serverProcess?.ExitCode ?? -1; } catch { }
+                    if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Server process exited with code {exitCode}");
+                    if (!startupComplete) {
+                        startupComplete = true;
+                        startupTcs.TrySetResult(false);
+                    }
+                    _serverProcess = null;
+                    if (!_externalServerDetected) {
+                        OnServerStopped?.Invoke();
+                    }
                 };
 
                 _serverProcess.BeginOutputReadLine();
@@ -280,10 +444,22 @@ namespace UnityMcp {
                 AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeReload;
                 AssemblyReloadEvents.beforeAssemblyReload += OnBeforeReload;
 
-                OnServerStarted?.Invoke();
-                Debug.Log($"[UnityMcp] Server started on port {McpSettings.HttpPort}");
+                // Wait for server to start or fail (with timeout)
+                var timeoutTask = Task.Delay(5000);
+                var completedTask = await Task.WhenAny(startupTcs.Task, timeoutTask);
 
-                return true;
+                if (completedTask == timeoutTask) {
+                    if (McpSettings.VerboseLogging) Debug.LogWarning("[UnityMcp] Server startup timed out, assuming it's running");
+                    OnServerStarted?.Invoke();
+                    return true;
+                }
+
+                var success = await startupTcs.Task;
+                if (success) {
+                    OnServerStarted?.Invoke();
+                    Debug.Log($"[UnityMcp] Server started on port {McpSettings.HttpPort}");
+                }
+                return success;
             } catch (Exception e) {
                 Debug.LogError($"[UnityMcp] Failed to start server: {e.Message}");
                 return false;
