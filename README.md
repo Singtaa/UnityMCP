@@ -24,12 +24,12 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Un
 
 1. Open Window > Package Manager
 2. Click the + button > Add package from git URL
-3. Enter: `https://github.com/singtaa/unity-mcp.git`
+3. Enter: `https://github.com/Singtaa/UnityMCP.git`
 
 ### Via git submodule
 
 ```bash
-git submodule add https://github.com/singtaa/unity-mcp.git Packages/com.singtaa.unity-mcp
+git submodule add https://github.com/Singtaa/UnityMCP.git Packages/com.singtaa.unity-mcp
 ```
 
 ## Quick Start
