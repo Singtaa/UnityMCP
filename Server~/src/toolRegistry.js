@@ -645,19 +645,19 @@ const _defs = [
     {
         safeName: "unity_test_list",
         bridgeName: "unity.test.list",
-        description: "List all available tests in the project. Returns test names, full names, and categories.",
+        description: "List all available tests in the project. Returns test names, full names, and categories. NOTE: If status='stabilizing' or status='compiling', wait ~1 second and retry.",
         inputSchema: {
             type: "object",
             properties: {
-                testMode: { 
-                    type: "string", 
-                    enum: ["editmode", "playmode", "all"], 
+                testMode: {
+                    type: "string",
+                    enum: ["editmode", "playmode", "all"],
                     default: "all",
                     description: "Filter tests by mode. 'editmode' for Editor tests, 'playmode' for Play Mode tests, 'all' for both."
                 },
-                nameFilter: { 
-                    type: "string", 
-                    description: "Filter tests by name (case-insensitive substring match)" 
+                nameFilter: {
+                    type: "string",
+                    description: "Filter tests by name (case-insensitive substring match)"
                 },
             },
             additionalProperties: false,
@@ -666,27 +666,27 @@ const _defs = [
     {
         safeName: "unity_test_run",
         bridgeName: "unity.test.run",
-        description: "Run Unity tests asynchronously. Returns a runId that can be used with unity_test_get_results to check status and retrieve results. Use this for PlayMode tests or when you don't want to block.",
+        description: "Run Unity tests asynchronously. Returns a runId - poll unity_test_get_results to check status and get results. If status='stabilizing', wait ~1 second and retry.",
         inputSchema: {
             type: "object",
             properties: {
-                testMode: { 
-                    type: "string", 
-                    enum: ["editmode", "playmode", "all"], 
+                testMode: {
+                    type: "string",
+                    enum: ["editmode", "playmode", "all"],
                     default: "editmode",
                     description: "Which test mode to run. PlayMode tests require entering Play Mode."
                 },
-                testFilter: { 
-                    type: "string", 
-                    description: "Comma-separated list of test names to run. Omit to run all tests." 
+                testFilter: {
+                    type: "string",
+                    description: "Comma-separated list of test names or partial names to run. Omit to run all tests."
                 },
-                categoryFilter: { 
-                    type: "string", 
-                    description: "Comma-separated list of test categories to include." 
+                categoryFilter: {
+                    type: "string",
+                    description: "Comma-separated list of test categories to include."
                 },
-                assemblyFilter: { 
-                    type: "string", 
-                    description: "Comma-separated list of assembly names to include (e.g., 'OneJS.Tests')." 
+                assemblyFilter: {
+                    type: "string",
+                    description: "Comma-separated list of assembly names to include (e.g., 'OneJS.Tests')."
                 },
             },
             additionalProperties: false,
@@ -695,34 +695,27 @@ const _defs = [
     {
         safeName: "unity_test_run_sync",
         bridgeName: "unity.test.runSync",
-        description: "Run EditMode tests synchronously and return results immediately. WARNING: Only works for EditMode tests. For PlayMode tests, use unity_test_run instead.",
+        description: "Start EditMode tests (NOT truly synchronous - Unity callbacks require polling). Returns immediately with runId. Use unity_test_get_results to poll for completion. Only works for EditMode tests.",
         inputSchema: {
             type: "object",
             properties: {
-                testMode: { 
-                    type: "string", 
-                    enum: ["editmode"], 
+                testMode: {
+                    type: "string",
+                    enum: ["editmode"],
                     default: "editmode",
-                    description: "Only 'editmode' is supported for synchronous execution."
+                    description: "Only 'editmode' is supported."
                 },
-                testFilter: { 
-                    type: "string", 
-                    description: "Comma-separated list of test names to run. Omit to run all tests." 
+                testFilter: {
+                    type: "string",
+                    description: "Comma-separated list of test names to run. Omit to run all tests."
                 },
-                categoryFilter: { 
-                    type: "string", 
-                    description: "Comma-separated list of test categories to include." 
+                categoryFilter: {
+                    type: "string",
+                    description: "Comma-separated list of test categories to include."
                 },
-                assemblyFilter: { 
-                    type: "string", 
-                    description: "Comma-separated list of assembly names to include." 
-                },
-                timeoutSeconds: { 
-                    type: "integer", 
-                    default: 300, 
-                    minimum: 10, 
-                    maximum: 3600,
-                    description: "Maximum time to wait for tests to complete." 
+                assemblyFilter: {
+                    type: "string",
+                    description: "Comma-separated list of assembly names to include."
                 },
             },
             additionalProperties: false,
@@ -731,7 +724,7 @@ const _defs = [
     {
         safeName: "unity_test_get_results",
         bridgeName: "unity.test.getResults",
-        description: "Get results from a test run. Returns status (running/completed), summary counts, and detailed results for each test.",
+        description: "Get results from a test run. Returns status (running/completed), summary counts, and detailed results. Poll this after unity_test_run until status='completed'.",
         inputSchema: {
             type: "object",
             properties: {

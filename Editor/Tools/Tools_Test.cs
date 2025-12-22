@@ -16,6 +16,19 @@ namespace UnityMcp {
         static TestRunState _lastRunState;
         static readonly object _stateLock = new object();
 
+        // Domain reload tracking - tests aren't ready immediately after reload
+        static double _lastDomainReloadTime;
+        const double DomainReloadStabilizationSeconds = 1.0;
+
+        [InitializeOnLoadMethod]
+        static void OnDomainReload() {
+            _lastDomainReloadTime = EditorApplication.timeSinceStartup;
+        }
+
+        static bool IsTestFrameworkStabilizing() {
+            return EditorApplication.timeSinceStartup - _lastDomainReloadTime < DomainReloadStabilizationSeconds;
+        }
+
         // MARK: Tool Handlers
 
         /// <summary>
@@ -23,7 +36,21 @@ namespace UnityMcp {
         /// </summary>
         public static ToolResult ListTests(JObject args) {
             if (EditorApplication.isCompiling) {
-                return ToolResultUtil.Text("Cannot list tests while compiling. Please wait.", true);
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                    status = "compiling",
+                    message = "Cannot list tests while compiling. Please wait and retry.",
+                    count = 0,
+                    tests = Array.Empty<object>()
+                }, Formatting.Indented), true);
+            }
+
+            if (IsTestFrameworkStabilizing()) {
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                    status = "stabilizing",
+                    message = "Test framework is stabilizing after domain reload. Please wait ~1 second and retry.",
+                    count = 0,
+                    tests = Array.Empty<object>()
+                }, Formatting.Indented), true);
             }
 
             var testModeStr = args.Value<string>("testMode")?.ToLowerInvariant() ?? "all";
@@ -32,20 +59,36 @@ namespace UnityMcp {
             try {
                 var api = ScriptableObject.CreateInstance<TestRunnerApi>();
                 var results = new List<object>();
+                bool receivedCallback = false;
 
                 if (testModeStr == "all" || testModeStr == "editmode") {
-                    var editModeTests = GetTestList(api, TestMode.EditMode, nameFilter);
+                    var editModeTests = GetTestList(api, TestMode.EditMode, nameFilter, out bool editCallback);
+                    receivedCallback |= editCallback;
                     results.AddRange(editModeTests);
                 }
 
                 if (testModeStr == "all" || testModeStr == "playmode") {
-                    var playModeTests = GetTestList(api, TestMode.PlayMode, nameFilter);
+                    var playModeTests = GetTestList(api, TestMode.PlayMode, nameFilter, out bool playCallback);
+                    receivedCallback |= playCallback;
                     results.AddRange(playModeTests);
                 }
 
                 ScriptableObject.DestroyImmediate(api);
 
+                // If callback wasn't invoked, the test framework may not be ready
+                // Note: Unity 6000.x may have issues with RetrieveTestList - test running still works
+                if (!receivedCallback) {
+                    return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                        status = "not_ready",
+                        message = "Test framework did not respond. This can happen right after domain reload.",
+                        hint = "You can still run tests using unity.test.run without a filter - the test count will be available in the results.",
+                        count = 0,
+                        tests = Array.Empty<object>()
+                    }, Formatting.Indented), true);
+                }
+
                 var response = new {
+                    status = "ok",
                     count = results.Count,
                     tests = results
                 };
@@ -66,7 +109,17 @@ namespace UnityMcp {
             var assemblyFilter = args.Value<string>("assemblyFilter");
 
             if (EditorApplication.isCompiling) {
-                return ToolResultUtil.Text("Cannot run tests while compiling. Please wait.", true);
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                    status = "compiling",
+                    message = "Cannot run tests while compiling. Please wait and retry."
+                }, Formatting.Indented), true);
+            }
+
+            if (IsTestFrameworkStabilizing()) {
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                    status = "stabilizing",
+                    message = "Test framework is stabilizing after domain reload. Please wait ~1 second and retry."
+                }, Formatting.Indented), true);
             }
 
             try {
@@ -207,26 +260,37 @@ namespace UnityMcp {
 
         /// <summary>
         /// Runs EditMode tests. This starts the test run and returns immediately.
-        /// The MCP server handles waiting for completion and returning results synchronously.
-        /// NOTE: Cannot truly block on main thread because Unity test callbacks need EditorApplication.update to run.
+        /// NOTE: Despite the name, this does NOT block. Unity's test callbacks require the editor
+        /// update loop to run, making true synchronous execution impossible.
+        /// Use unity.test.getResults to poll for completion.
         /// </summary>
         public static ToolResult RunTestsSync(JObject args) {
             var testModeStr = args.Value<string>("testMode")?.ToLowerInvariant() ?? "editmode";
             var testFilter = args.Value<string>("testFilter");
             var categoryFilter = args.Value<string>("categoryFilter");
             var assemblyFilter = args.Value<string>("assemblyFilter");
-            // Note: timeoutSeconds parameter is accepted but ignored - synchronous waiting 
-            // is not possible in Unity because test callbacks need the editor update loop to run
 
             if (EditorApplication.isCompiling) {
-                return ToolResultUtil.Text("Cannot run tests while compiling. Please wait.", true);
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                    status = "compiling",
+                    message = "Cannot run tests while compiling. Please wait and retry."
+                }, Formatting.Indented), true);
+            }
+
+            if (IsTestFrameworkStabilizing()) {
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                    status = "stabilizing",
+                    message = "Test framework is stabilizing after domain reload. Please wait ~1 second and retry."
+                }, Formatting.Indented), true);
             }
 
             // PlayMode tests cannot be run synchronously
             if (testModeStr == "playmode" || testModeStr == "all") {
-                return ToolResultUtil.Text(
-                    "PlayMode tests cannot be run synchronously as they require entering Play Mode. " +
-                    "Use unity.test.run instead and poll unity.test.getResults for completion.", true);
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                    status = "invalid_mode",
+                    message = "PlayMode tests cannot be run with runSync as they require entering Play Mode. " +
+                              "Use unity.test.run instead and poll unity.test.getResults for completion."
+                }, Formatting.Indented), true);
             }
 
             try {
@@ -340,10 +404,15 @@ namespace UnityMcp {
             api.RetrieveTestList(mode, adaptor.OnTestListReceived);
         }
 
-        static List<object> GetTestList(TestRunnerApi api, TestMode mode, string nameFilter) {
+        static List<object> GetTestList(TestRunnerApi api, TestMode mode, string nameFilter, out bool receivedCallback) {
             var results = new List<object>();
             var adaptor = new TestListAdaptor(results, mode.ToString(), nameFilter);
-            api.RetrieveTestList(mode, adaptor.OnTestListReceived);
+            bool[] callbackReceived = { false };  // Use array to allow capture in lambda
+            api.RetrieveTestList(mode, (rootTest) => {
+                callbackReceived[0] = true;
+                adaptor.OnTestListReceived(rootTest);
+            });
+            receivedCallback = callbackReceived[0];
             return results;
         }
 
