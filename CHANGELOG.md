@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Set references using `{instanceId: int}` or `{assetPath: string}` object format
   - Clear references by setting to null
 
+### Improved
+
+- **Test runner tools** stability and error handling:
+  - All responses now include `status` field for programmatic error handling
+  - Domain reload detection prevents calls during unstable period
+  - Callback invocation tracking detects when test framework isn't ready
+  - Helpful hints guide users to workarounds (e.g., use `unity_test_run` when listing fails)
+  - Updated tool descriptions to clarify async nature and polling requirements
+  - Note: `unity_test_list` may not work in Unity 6000.x beta; `unity_test_run` works reliably
+
 ## [1.0.0] - 2025-01-XX
 
 ### Added

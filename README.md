@@ -100,10 +100,12 @@ Settings are stored in `ProjectSettings/McpSettings.json`:
 - `unity_prefab_find_component` - Find component within prefab by path
 
 ### Testing
-- `unity_test_list` - List available tests
-- `unity_test_run` - Run tests asynchronously
-- `unity_test_run_sync` - Run tests synchronously
-- `unity_test_get_results` - Get test results
+- `unity_test_list` - List available tests (returns structured JSON with `status` field)
+- `unity_test_run` - Run tests asynchronously, returns `runId` for polling
+- `unity_test_run_sync` - Start EditMode tests (not truly sync; poll `get_results`)
+- `unity_test_get_results` - Get test results by `runId`
+
+> **Note:** After domain reload (script recompilation), wait ~1 second before calling test tools. If `unity_test_list` returns `status: "not_ready"`, you can still run tests directly with `unity_test_run` (without filter) and see all tests in the results.
 
 ### Project & Assets
 - `unity_project_list_files` - List project files
