@@ -183,10 +183,16 @@ namespace UnityMcp {
             var props = new Dictionary<string, object>();
             var iter = so.GetIterator();
 
-            if (iter.NextVisible(true)) {
-                do {
-                    props[iter.propertyPath] = GetSerializedValue(iter);
-                } while (iter.NextVisible(false));
+            // Use Next(true) to enter all children including array elements
+            bool enterChildren = true;
+            while (iter.Next(enterChildren)) {
+                // Skip script reference
+                if (iter.propertyPath == "m_Script") {
+                    enterChildren = false;
+                    continue;
+                }
+                props[iter.propertyPath] = GetSerializedValue(iter);
+                enterChildren = true;
             }
 
             return ToolResultUtil.Text(JsonConvert.SerializeObject(new {

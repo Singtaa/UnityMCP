@@ -46,7 +46,8 @@ namespace UnityMcp.Tests {
 
             Assert.IsFalse(result.isError, $"Expected success but got error: {result.content[0].text}");
             var json = JObject.Parse(result.content[0].text);
-            Assert.AreEqual("TestPrefabRoot", json["name"].Value<string>());
+            // Unity renames the prefab root to match the asset filename
+            Assert.AreEqual("TestPrefab_McpTemp", json["name"].Value<string>());
             Assert.IsTrue(json["isPrefabAsset"].Value<bool>());
             Assert.AreEqual(1, json["childCount"].Value<int>());
         }
@@ -79,7 +80,8 @@ namespace UnityMcp.Tests {
             var json = JObject.Parse(result.content[0].text);
             var hierarchy = json["hierarchy"];
             Assert.IsNotNull(hierarchy);
-            Assert.AreEqual("TestPrefabRoot", hierarchy["name"].Value<string>());
+            // Unity renames the prefab root to match the asset filename
+            Assert.AreEqual("TestPrefab_McpTemp", hierarchy["name"].Value<string>());
 
             // Check children
             var children = hierarchy["children"] as JArray;
