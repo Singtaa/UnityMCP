@@ -374,6 +374,194 @@ namespace UnityMcp {
             return string.Join("\n\n// --- Overload ---\n\n", sources);
         }
 
+        // MARK: GetPublicApi
+        /// <summary>
+        /// Returns a formatted C#-like public interface of a type.
+        /// Much more concise than GetTypeInfo - shows just the public API shape.
+        /// </summary>
+        public static ToolResult GetPublicApi(JObject args) {
+            var typeName = args.Value<string>("typeName");
+            if (string.IsNullOrEmpty(typeName))
+                return ToolResultUtil.Text("Missing param: typeName", true);
+
+            var includeInherited = args.Value<bool?>("includeInherited") ?? false;
+
+            var type = FindType(typeName);
+            if (type == null)
+                return ToolResultUtil.Text($"Type not found: {typeName}", true);
+
+            try {
+                var sb = new System.Text.StringBuilder();
+                var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
+                if (!includeInherited) flags |= BindingFlags.DeclaredOnly;
+
+                // Type declaration
+                sb.Append(FormatTypeDeclaration(type));
+                sb.AppendLine(" {");
+
+                // Constructors (always DeclaredOnly)
+                var ctors = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                    .OrderBy(c => c.GetParameters().Length)
+                    .ToArray();
+                if (ctors.Length > 0) {
+                    sb.AppendLine("    // Constructors");
+                    foreach (var ctor in ctors) {
+                        sb.AppendLine($"    public {FormatConstructorSignature(ctor)};");
+                    }
+                    sb.AppendLine();
+                }
+
+                // Static fields (constants)
+                var staticFields = type.GetFields(flags)
+                    .Where(f => f.IsStatic && f.IsPublic && (f.IsLiteral || f.IsInitOnly))
+                    .OrderBy(f => f.Name)
+                    .ToArray();
+                if (staticFields.Length > 0) {
+                    sb.AppendLine("    // Constants/Static Fields");
+                    foreach (var field in staticFields) {
+                        var modifier = field.IsLiteral ? "const" : "static readonly";
+                        sb.AppendLine($"    public {modifier} {FormatTypeName(field.FieldType)} {field.Name};");
+                    }
+                    sb.AppendLine();
+                }
+
+                // Properties (grouped by static/instance)
+                var properties = type.GetProperties(flags)
+                    .Where(p => p.GetMethod?.IsPublic == true || p.SetMethod?.IsPublic == true)
+                    .ToArray();
+
+                var staticProps = properties.Where(p => (p.GetMethod ?? p.SetMethod)?.IsStatic == true)
+                    .OrderBy(p => p.Name).ToArray();
+                var instanceProps = properties.Where(p => (p.GetMethod ?? p.SetMethod)?.IsStatic == false)
+                    .OrderBy(p => p.Name).ToArray();
+
+                if (staticProps.Length > 0) {
+                    sb.AppendLine("    // Static Properties");
+                    foreach (var prop in staticProps) {
+                        sb.AppendLine($"    public static {FormatPropertySignature(prop)};");
+                    }
+                    sb.AppendLine();
+                }
+
+                if (instanceProps.Length > 0) {
+                    sb.AppendLine("    // Properties");
+                    foreach (var prop in instanceProps) {
+                        sb.AppendLine($"    public {FormatPropertySignature(prop)};");
+                    }
+                    sb.AppendLine();
+                }
+
+                // Events
+                var events = type.GetEvents(flags).OrderBy(e => e.Name).ToArray();
+                if (events.Length > 0) {
+                    sb.AppendLine("    // Events");
+                    foreach (var evt in events) {
+                        sb.AppendLine($"    public event {FormatTypeName(evt.EventHandlerType)} {evt.Name};");
+                    }
+                    sb.AppendLine();
+                }
+
+                // Methods (grouped by static/instance)
+                var methods = type.GetMethods(flags)
+                    .Where(m => m.IsPublic && !m.IsSpecialName)
+                    .ToArray();
+
+                var staticMethods = methods.Where(m => m.IsStatic).OrderBy(m => m.Name).ToArray();
+                var instanceMethods = methods.Where(m => !m.IsStatic).OrderBy(m => m.Name).ToArray();
+
+                if (staticMethods.Length > 0) {
+                    sb.AppendLine("    // Static Methods");
+                    foreach (var method in staticMethods) {
+                        sb.AppendLine($"    public static {FormatMethodSignature(method)};");
+                    }
+                    sb.AppendLine();
+                }
+
+                if (instanceMethods.Length > 0) {
+                    sb.AppendLine("    // Methods");
+                    foreach (var method in instanceMethods) {
+                        var modifiers = "";
+                        if (method.IsAbstract) modifiers = "abstract ";
+                        else if (method.IsVirtual && !method.IsFinal) modifiers = "virtual ";
+                        sb.AppendLine($"    public {modifiers}{FormatMethodSignature(method)};");
+                    }
+                }
+
+                sb.AppendLine("}");
+
+                // Also include brief info about nested types
+                var nestedTypes = type.GetNestedTypes(BindingFlags.Public);
+                if (nestedTypes.Length > 0) {
+                    sb.AppendLine();
+                    sb.AppendLine("// Nested Types:");
+                    foreach (var nested in nestedTypes.OrderBy(t => t.Name)) {
+                        var kind = nested.IsEnum ? "enum" : nested.IsInterface ? "interface" : nested.IsValueType ? "struct" : "class";
+                        sb.AppendLine($"//   {kind} {nested.Name}");
+                    }
+                }
+
+                var response = new {
+                    typeName = type.FullName,
+                    assembly = type.Assembly.GetName().Name,
+                    baseType = type.BaseType?.FullName,
+                    interfaces = type.GetInterfaces().Select(i => i.FullName).ToArray(),
+                    publicApi = sb.ToString()
+                };
+
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(response, Formatting.Indented));
+            } catch (Exception e) {
+                return ToolResultUtil.Text($"Failed to generate public API: {e.Message}", true);
+            }
+        }
+
+        static string FormatTypeDeclaration(Type type) {
+            var sb = new System.Text.StringBuilder();
+
+            // Modifiers
+            if (type.IsPublic || type.IsNestedPublic) sb.Append("public ");
+            if (type.IsAbstract && type.IsSealed) sb.Append("static ");
+            else if (type.IsAbstract && !type.IsInterface) sb.Append("abstract ");
+            else if (type.IsSealed && !type.IsValueType) sb.Append("sealed ");
+
+            // Type kind
+            if (type.IsInterface) sb.Append("interface ");
+            else if (type.IsEnum) sb.Append("enum ");
+            else if (type.IsValueType) sb.Append("struct ");
+            else sb.Append("class ");
+
+            // Name with generic parameters
+            sb.Append(type.Name);
+            if (type.IsGenericType) {
+                var tickIndex = type.Name.IndexOf('`');
+                if (tickIndex > 0) {
+                    sb.Length -= (type.Name.Length - tickIndex);
+                    var args = type.GetGenericArguments().Select(g => g.Name);
+                    sb.Append($"<{string.Join(", ", args)}>");
+                }
+            }
+
+            // Base type and interfaces
+            var bases = new List<string>();
+            if (type.BaseType != null && type.BaseType != typeof(object) && type.BaseType != typeof(ValueType))
+                bases.Add(FormatTypeName(type.BaseType));
+            bases.AddRange(type.GetInterfaces()
+                .Where(i => !type.BaseType?.GetInterfaces().Contains(i) ?? true)
+                .Take(5) // Limit to avoid clutter
+                .Select(FormatTypeName));
+
+            if (bases.Count > 0)
+                sb.Append($" : {string.Join(", ", bases)}");
+
+            return sb.ToString();
+        }
+
+        static string FormatPropertySignature(PropertyInfo prop) {
+            var accessors = new List<string>();
+            if (prop.CanRead && prop.GetMethod?.IsPublic == true) accessors.Add("get");
+            if (prop.CanWrite && prop.SetMethod?.IsPublic == true) accessors.Add("set");
+            return $"{FormatTypeName(prop.PropertyType)} {prop.Name} {{ {string.Join("; ", accessors)}; }}";
+        }
+
         // MARK: InvokeStatic
         public static ToolResult InvokeStatic(JObject args) {
             var typeName = args.Value<string>("typeName");

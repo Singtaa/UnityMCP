@@ -991,6 +991,27 @@ const _defs = [
             additionalProperties: false,
         },
     },
+    {
+        safeName: "unity_reflection_get_public_api",
+        bridgeName: "unity.reflection.getPublicApi",
+        description: "Get a formatted C#-like public interface of a type. Returns a concise, readable representation of the type's public API shape (constructors, properties, methods, events) without implementation details. More readable than getTypeInfo for quick API discovery.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                typeName: {
+                    type: "string",
+                    description: "Fully qualified type name (e.g., 'UnityEngine.GameObject')"
+                },
+                includeInherited: {
+                    type: "boolean",
+                    default: false,
+                    description: "Include inherited members from base types"
+                }
+            },
+            required: ["typeName"],
+            additionalProperties: false,
+        },
+    },
 ]
 
 const tools = _defs.map((d) => ({

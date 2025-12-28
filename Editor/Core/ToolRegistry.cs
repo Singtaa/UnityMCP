@@ -139,6 +139,7 @@ namespace UnityMcp {
                 ["unity.reflection.getAssemblies"] = Tools_Reflection.GetAssemblies,
                 ["unity.reflection.decompile"] = Tools_Reflection.Decompile,
                 ["unity.reflection.invokeStatic"] = Tools_Reflection.InvokeStatic,
+                ["unity.reflection.getPublicApi"] = Tools_Reflection.GetPublicApi,
             };
         }
 

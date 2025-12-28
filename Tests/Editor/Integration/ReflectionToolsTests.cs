@@ -375,5 +375,144 @@ namespace UnityMcp.Tests {
             Assert.IsFalse(json["success"].Value<bool>());
             Assert.AreEqual("PropertyNotFound", json["errorType"].Value<string>());
         }
+
+        // MARK: GetPublicApi Tests
+        [Test]
+        public void GetPublicApi_ReturnsFormattedApi() {
+            var args = new JObject {
+                ["typeName"] = "UnityEngine.Vector3"
+            };
+
+            var result = Tools_Reflection.GetPublicApi(args);
+
+            Assert.IsFalse(result.isError, $"Expected success but got error: {result.content[0].text}");
+            var json = JObject.Parse(result.content[0].text);
+
+            Assert.AreEqual("UnityEngine.Vector3", json["typeName"].Value<string>());
+            Assert.IsNotNull(json["assembly"]);
+            Assert.IsNotNull(json["publicApi"]);
+
+            var publicApi = json["publicApi"].Value<string>();
+            // Should be formatted as C#-like code
+            Assert.That(publicApi, Does.Contain("struct Vector3"));
+            Assert.That(publicApi, Does.Contain("public"));
+        }
+
+        [Test]
+        public void GetPublicApi_IncludesProperties() {
+            var args = new JObject {
+                ["typeName"] = "UnityEngine.Vector3"
+            };
+
+            var result = Tools_Reflection.GetPublicApi(args);
+
+            Assert.IsFalse(result.isError);
+            var json = JObject.Parse(result.content[0].text);
+            var publicApi = json["publicApi"].Value<string>();
+
+            // Vector3 has x, y, z properties
+            Assert.That(publicApi, Does.Contain("float x"));
+            Assert.That(publicApi, Does.Contain("float y"));
+            Assert.That(publicApi, Does.Contain("float z"));
+        }
+
+        [Test]
+        public void GetPublicApi_IncludesMethods() {
+            var args = new JObject {
+                ["typeName"] = "UnityEngine.GameObject"
+            };
+
+            var result = Tools_Reflection.GetPublicApi(args);
+
+            Assert.IsFalse(result.isError);
+            var json = JObject.Parse(result.content[0].text);
+            var publicApi = json["publicApi"].Value<string>();
+
+            // GameObject has common methods
+            Assert.That(publicApi, Does.Contain("GetComponent"));
+            Assert.That(publicApi, Does.Contain("AddComponent"));
+        }
+
+        [Test]
+        public void GetPublicApi_IncludesConstructors() {
+            var args = new JObject {
+                ["typeName"] = "UnityEngine.GameObject"
+            };
+
+            var result = Tools_Reflection.GetPublicApi(args);
+
+            Assert.IsFalse(result.isError);
+            var json = JObject.Parse(result.content[0].text);
+            var publicApi = json["publicApi"].Value<string>();
+
+            // Should have constructors section
+            Assert.That(publicApi, Does.Contain("// Constructors"));
+            Assert.That(publicApi, Does.Contain("GameObject("));
+        }
+
+        [Test]
+        public void GetPublicApi_IncludesStaticMembers() {
+            var args = new JObject {
+                ["typeName"] = "UnityEngine.Vector3"
+            };
+
+            var result = Tools_Reflection.GetPublicApi(args);
+
+            Assert.IsFalse(result.isError);
+            var json = JObject.Parse(result.content[0].text);
+            var publicApi = json["publicApi"].Value<string>();
+
+            // Vector3 has static properties like zero, one, up, etc.
+            Assert.That(publicApi, Does.Contain("Static Properties"));
+            Assert.That(publicApi, Does.Contain("Vector3 zero"));
+        }
+
+        [Test]
+        public void GetPublicApi_TypeNotFound_ReturnsError() {
+            var args = new JObject {
+                ["typeName"] = "NonExistent.FakeType"
+            };
+
+            var result = Tools_Reflection.GetPublicApi(args);
+
+            Assert.IsTrue(result.isError);
+            Assert.That(result.content[0].text, Does.Contain("Type not found"));
+        }
+
+        [Test]
+        public void GetPublicApi_MissingTypeName_ReturnsError() {
+            var args = new JObject();
+
+            var result = Tools_Reflection.GetPublicApi(args);
+
+            Assert.IsTrue(result.isError);
+            Assert.That(result.content[0].text, Does.Contain("Missing param: typeName"));
+        }
+
+        [Test]
+        public void GetPublicApi_WithInheritedMembers() {
+            // Test with and without inherited members
+            var argsNoInherit = new JObject {
+                ["typeName"] = "UnityEngine.GameObject",
+                ["includeInherited"] = false
+            };
+            var argsWithInherit = new JObject {
+                ["typeName"] = "UnityEngine.GameObject",
+                ["includeInherited"] = true
+            };
+
+            var resultNoInherit = Tools_Reflection.GetPublicApi(argsNoInherit);
+            var resultWithInherit = Tools_Reflection.GetPublicApi(argsWithInherit);
+
+            Assert.IsFalse(resultNoInherit.isError);
+            Assert.IsFalse(resultWithInherit.isError);
+
+            var apiNoInherit = JObject.Parse(resultNoInherit.content[0].text)["publicApi"].Value<string>();
+            var apiWithInherit = JObject.Parse(resultWithInherit.content[0].text)["publicApi"].Value<string>();
+
+            // With inherited should have more content (inherited from UnityEngine.Object)
+            Assert.That(apiWithInherit.Length, Is.GreaterThan(apiNoInherit.Length),
+                "API with inherited members should be larger");
+        }
     }
 }
