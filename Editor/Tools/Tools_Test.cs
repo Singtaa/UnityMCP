@@ -156,7 +156,18 @@ namespace UnityMcp {
 
                 // If testFilter is provided, resolve partial names to full test names
                 if (!string.IsNullOrEmpty(testFilter)) {
-                    var resolvedNames = ResolveTestNames(api, testMode, testFilter);
+                    var resolvedNames = ResolveTestNames(api, testMode, testFilter, out bool callbackInvoked);
+
+                    // If callback wasn't invoked, the test framework isn't ready yet
+                    if (!callbackInvoked) {
+                        ScriptableObject.DestroyImmediate(api);
+                        return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                            status = "not_ready",
+                            message = "Test framework did not respond when resolving test filter. This can happen right after domain reload.",
+                            hint = "Wait ~1 second and retry, or run tests without a filter."
+                        }, Formatting.Indented), true);
+                    }
+
                     if (resolvedNames.Length == 0) {
                         ScriptableObject.DestroyImmediate(api);
                         return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
@@ -317,7 +328,18 @@ namespace UnityMcp {
 
                 // If testFilter is provided, resolve partial names to full test names
                 if (!string.IsNullOrEmpty(testFilter)) {
-                    var resolvedNames = ResolveTestNames(api, testMode, testFilter);
+                    var resolvedNames = ResolveTestNames(api, testMode, testFilter, out bool callbackInvoked);
+
+                    // If callback wasn't invoked, the test framework isn't ready yet
+                    if (!callbackInvoked) {
+                        ScriptableObject.DestroyImmediate(api);
+                        return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                            status = "not_ready",
+                            message = "Test framework did not respond when resolving test filter. This can happen right after domain reload.",
+                            hint = "Wait ~1 second and retry, or run tests without a filter."
+                        }, Formatting.Indented), true);
+                    }
+
                     if (resolvedNames.Length == 0) {
                         ScriptableObject.DestroyImmediate(api);
                         return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
@@ -377,31 +399,44 @@ namespace UnityMcp {
         /// <summary>
         /// Resolves partial test name filters to full test names.
         /// Supports comma-separated partial names that match against test name or full name.
+        /// Returns null if the test framework didn't respond (not ready), empty array if no matches found.
         /// </summary>
-        static string[] ResolveTestNames(TestRunnerApi api, TestMode testMode, string testFilter) {
+        static string[] ResolveTestNames(TestRunnerApi api, TestMode testMode, string testFilter, out bool callbackInvoked) {
+            callbackInvoked = false;
+
             var filterParts = testFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(s => s.Trim().ToLowerInvariant())
                 .Where(s => !string.IsNullOrEmpty(s))
                 .ToArray();
 
-            if (filterParts.Length == 0) return Array.Empty<string>();
+            if (filterParts.Length == 0) {
+                callbackInvoked = true; // No filter means we don't need to query
+                return Array.Empty<string>();
+            }
 
             var matchedNames = new HashSet<string>();
 
             // Collect tests from relevant modes
             if ((testMode & TestMode.EditMode) != 0) {
-                CollectMatchingTests(api, TestMode.EditMode, filterParts, matchedNames);
+                CollectMatchingTests(api, TestMode.EditMode, filterParts, matchedNames, out bool editCallback);
+                callbackInvoked |= editCallback;
             }
             if ((testMode & TestMode.PlayMode) != 0) {
-                CollectMatchingTests(api, TestMode.PlayMode, filterParts, matchedNames);
+                CollectMatchingTests(api, TestMode.PlayMode, filterParts, matchedNames, out bool playCallback);
+                callbackInvoked |= playCallback;
             }
 
             return matchedNames.ToArray();
         }
 
-        static void CollectMatchingTests(TestRunnerApi api, TestMode mode, string[] filterParts, HashSet<string> matchedNames) {
+        static void CollectMatchingTests(TestRunnerApi api, TestMode mode, string[] filterParts, HashSet<string> matchedNames, out bool callbackInvoked) {
             var adaptor = new TestNameCollector(filterParts, matchedNames);
-            api.RetrieveTestList(mode, adaptor.OnTestListReceived);
+            bool[] received = { false };
+            api.RetrieveTestList(mode, (rootTest) => {
+                received[0] = true;
+                adaptor.OnTestListReceived(rootTest);
+            });
+            callbackInvoked = received[0];
         }
 
         static List<object> GetTestList(TestRunnerApi api, TestMode mode, string nameFilter, out bool receivedCallback) {
