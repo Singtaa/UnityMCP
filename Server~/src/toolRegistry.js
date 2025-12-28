@@ -826,7 +826,7 @@ const _defs = [
     {
         safeName: "unity_reflection_search_types",
         bridgeName: "unity.reflection.searchTypes",
-        description: "Search for types by name pattern across all loaded assemblies. Returns type names, namespaces, and assembly info.",
+        description: "Search for types by name pattern across all loaded assemblies. Use when you don't know the exact type name or want to discover available types. Returns brief info: names, namespaces, assembly, and type kind (class/struct/interface/enum).",
         inputSchema: {
             type: "object",
             properties: {
@@ -861,7 +861,7 @@ const _defs = [
     {
         safeName: "unity_reflection_get_type_info",
         bridgeName: "unity.reflection.getTypeInfo",
-        description: "Get detailed type information including members, methods, properties, fields, and events.",
+        description: "Get detailed structured JSON data about a type's members. Returns verbose output with full metadata (parameters, return types, modifiers, declaring types). Best for programmatic analysis. For a quick readable overview, use get_public_api instead.",
         inputSchema: {
             type: "object",
             properties: {
@@ -893,7 +893,7 @@ const _defs = [
     {
         safeName: "unity_reflection_get_method_info",
         bridgeName: "unity.reflection.getMethodInfo",
-        description: "Get detailed method information including all overloads and parameter details.",
+        description: "Get detailed information about a specific method, including ALL overloads with full parameter details (types, defaults, ref/out). Use when you need to understand method signatures for calling or implementing.",
         inputSchema: {
             type: "object",
             properties: {
@@ -918,7 +918,7 @@ const _defs = [
     {
         safeName: "unity_reflection_get_assemblies",
         bridgeName: "unity.reflection.getAssemblies",
-        description: "List all loaded assemblies in the current AppDomain.",
+        description: "List all loaded assemblies in the current AppDomain. Returns assembly names, versions, locations, and type counts. Use to discover available assemblies before searching for types with search_types.",
         inputSchema: {
             type: "object",
             properties: {
@@ -938,7 +938,7 @@ const _defs = [
     {
         safeName: "unity_reflection_decompile",
         bridgeName: "unity.reflection.decompile",
-        description: "Decompile a type or method to C# source code. Supports pagination for large outputs.",
+        description: "Decompile a type or method to actual C# source code with full implementation details. Use when you need to understand HOW something works internally. For just the public API shape without implementation, use get_public_api instead. Supports pagination for large outputs.",
         inputSchema: {
             type: "object",
             properties: {
@@ -994,7 +994,7 @@ const _defs = [
     {
         safeName: "unity_reflection_get_public_api",
         bridgeName: "unity.reflection.getPublicApi",
-        description: "Get a formatted C#-like public interface of a type. Returns a concise, readable representation of the type's public API shape (constructors, properties, methods, events) without implementation details. More readable than getTypeInfo for quick API discovery.",
+        description: "Get a concise, human-readable C# interface stub of a type. Shows public API shape (constructors, properties, methods, events) without implementation. BEST CHOICE for quickly understanding what a type offers. Use get_type_info for structured JSON data, or decompile for full source code.",
         inputSchema: {
             type: "object",
             properties: {

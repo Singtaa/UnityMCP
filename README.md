@@ -7,7 +7,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Un
 
 ## Features
 
-- **72 Tools** for manipulating scenes, GameObjects, components, prefabs, transforms, and more
+- **69 Tools** for manipulating scenes, GameObjects, components, prefabs, transforms, reflection, and more
 - **MCP Resources** for live access to console logs, scene hierarchy, test results, and project files
 - **Auto-start Node.js server** - no manual setup required
 - **Editor Window** for monitoring and configuration
@@ -113,6 +113,15 @@ Settings are stored in `ProjectSettings/McpSettings.json`:
 - `unity_project_write_text` - Write text files
 - `unity_assets_refresh` - Refresh AssetDatabase
 - `unity_assets_import` - Import specific assets
+
+### Reflection & Decompilation
+- `unity_reflection_search_types` - Search for types by name pattern across all assemblies
+- `unity_reflection_get_type_info` - Get detailed structured JSON data about a type's members
+- `unity_reflection_get_method_info` - Get method overloads with full parameter details
+- `unity_reflection_get_public_api` - Get concise C# interface stub (best for quick API overview)
+- `unity_reflection_get_assemblies` - List all loaded assemblies
+- `unity_reflection_decompile` - Decompile type/method to C# source code
+- `unity_reflection_invoke_static` - Invoke parameterless static methods/properties
 
 ## MCP Resources
 
