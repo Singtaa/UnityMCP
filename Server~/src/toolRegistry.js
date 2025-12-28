@@ -821,6 +821,176 @@ const _defs = [
             additionalProperties: false,
         },
     },
+
+    // MARK: Reflection
+    {
+        safeName: "unity_reflection_search_types",
+        bridgeName: "unity.reflection.searchTypes",
+        description: "Search for types by name pattern across all loaded assemblies. Returns type names, namespaces, and assembly info.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                pattern: {
+                    type: "string",
+                    description: "Name pattern to search (case-insensitive substring match). Prefix with ^ for exact match."
+                },
+                namespace: {
+                    type: "string",
+                    description: "Filter by namespace (case-insensitive prefix match)"
+                },
+                assemblyFilter: {
+                    type: "string",
+                    description: "Filter by assembly name (case-insensitive substring)"
+                },
+                includeNested: {
+                    type: "boolean",
+                    default: false,
+                    description: "Include nested types in results"
+                },
+                maxResults: {
+                    type: "integer",
+                    default: 100,
+                    maximum: 500,
+                    description: "Maximum number of results to return"
+                }
+            },
+            required: ["pattern"],
+            additionalProperties: false,
+        },
+    },
+    {
+        safeName: "unity_reflection_get_type_info",
+        bridgeName: "unity.reflection.getTypeInfo",
+        description: "Get detailed type information including members, methods, properties, fields, and events.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                typeName: {
+                    type: "string",
+                    description: "Fully qualified type name (e.g., 'UnityEngine.GameObject')"
+                },
+                includeInherited: {
+                    type: "boolean",
+                    default: false,
+                    description: "Include inherited members (can produce large output)"
+                },
+                includePrivate: {
+                    type: "boolean",
+                    default: false,
+                    description: "Include private/internal members"
+                },
+                sections: {
+                    type: "array",
+                    items: { type: "string", enum: ["methods", "properties", "fields", "events", "constructors", "nested"] },
+                    default: ["methods", "properties", "fields"],
+                    description: "Which member sections to include"
+                }
+            },
+            required: ["typeName"],
+            additionalProperties: false,
+        },
+    },
+    {
+        safeName: "unity_reflection_get_method_info",
+        bridgeName: "unity.reflection.getMethodInfo",
+        description: "Get detailed method information including all overloads and parameter details.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                typeName: {
+                    type: "string",
+                    description: "Fully qualified type name"
+                },
+                methodName: {
+                    type: "string",
+                    description: "Method name to look up"
+                },
+                includeInherited: {
+                    type: "boolean",
+                    default: true,
+                    description: "Include inherited methods"
+                }
+            },
+            required: ["typeName", "methodName"],
+            additionalProperties: false,
+        },
+    },
+    {
+        safeName: "unity_reflection_get_assemblies",
+        bridgeName: "unity.reflection.getAssemblies",
+        description: "List all loaded assemblies in the current AppDomain.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                filter: {
+                    type: "string",
+                    description: "Filter by assembly name (case-insensitive substring)"
+                },
+                includeSystem: {
+                    type: "boolean",
+                    default: false,
+                    description: "Include System.* and mscorlib assemblies"
+                }
+            },
+            additionalProperties: false,
+        },
+    },
+    {
+        safeName: "unity_reflection_decompile",
+        bridgeName: "unity.reflection.decompile",
+        description: "Decompile a type or method to C# source code. Supports pagination for large outputs.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                typeName: {
+                    type: "string",
+                    description: "Fully qualified type name to decompile"
+                },
+                methodName: {
+                    type: "string",
+                    description: "Optional: specific method to decompile (omit for entire type)"
+                },
+                offset: {
+                    type: "integer",
+                    default: 0,
+                    description: "Line offset for pagination"
+                },
+                limit: {
+                    type: "integer",
+                    default: 200,
+                    maximum: 1000,
+                    description: "Max lines to return"
+                }
+            },
+            required: ["typeName"],
+            additionalProperties: false,
+        },
+    },
+    {
+        safeName: "unity_reflection_invoke_static",
+        bridgeName: "unity.reflection.invokeStatic",
+        description: "Invoke a parameterless static method or property getter. Returns the result serialized to JSON. Use with caution - this executes arbitrary code.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                typeName: {
+                    type: "string",
+                    description: "Fully qualified type name (e.g., 'UnityEditor.EditorApplication')"
+                },
+                methodName: {
+                    type: "string",
+                    description: "Static method name (parameterless) or property name"
+                },
+                isProperty: {
+                    type: "boolean",
+                    default: false,
+                    description: "Set true to invoke property getter instead of method"
+                }
+            },
+            required: ["typeName", "methodName"],
+            additionalProperties: false,
+        },
+    },
 ]
 
 const tools = _defs.map((d) => ({

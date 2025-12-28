@@ -131,6 +131,14 @@ namespace UnityMcp {
                 ["unity.prefab.save"] = Tools_Prefab.Save,
                 ["unity.prefab.getHierarchy"] = Tools_Prefab.GetHierarchy,
                 ["unity.prefab.findComponent"] = Tools_Prefab.FindComponent,
+
+                // Reflection
+                ["unity.reflection.searchTypes"] = Tools_Reflection.SearchTypes,
+                ["unity.reflection.getTypeInfo"] = Tools_Reflection.GetTypeInfo,
+                ["unity.reflection.getMethodInfo"] = Tools_Reflection.GetMethodInfo,
+                ["unity.reflection.getAssemblies"] = Tools_Reflection.GetAssemblies,
+                ["unity.reflection.decompile"] = Tools_Reflection.Decompile,
+                ["unity.reflection.invokeStatic"] = Tools_Reflection.InvokeStatic,
             };
         }
 

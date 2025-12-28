@@ -15,5 +15,10 @@ Thumbs.db
 *.swo
 
 # Build
-*.dll
 *.pdb
+
+# Allow Plugins folder (for ICSharpCode.Decompiler etc.)
+!Plugins/
+!Plugins/**/*.dll
+!Plugins/**/*.meta
+!Plugins.meta

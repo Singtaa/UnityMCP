@@ -13,7 +13,10 @@
     "overrideReferences": true,
     "precompiledReferences": [
         "Newtonsoft.Json.dll",
-        "nunit.framework.dll"
+        "nunit.framework.dll",
+        "ICSharpCode.Decompiler.dll",
+        "System.Reflection.Metadata.dll",
+        "System.Collections.Immutable.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],
