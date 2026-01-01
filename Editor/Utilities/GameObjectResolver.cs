@@ -29,7 +29,7 @@ namespace UnityMcp {
             if (identifier.StartsWith("#", StringComparison.Ordinal)) {
                 var idStr = identifier.Substring(1);
                 if (int.TryParse(idStr, out var id)) {
-                    go = EditorUtility.InstanceIDToObject(id) as GameObject;
+                    go = EditorUtility.EntityIdToObject(id) as GameObject;
                     if (go != null) return true;
                     error = $"No GameObject with instanceId {id}.";
                     return false;

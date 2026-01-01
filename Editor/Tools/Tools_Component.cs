@@ -395,7 +395,7 @@ namespace UnityMcp {
                         // Accept instanceId as integer
                         if (value.Type == JTokenType.Integer) {
                             var instanceId = value.Value<int>();
-                            var obj = EditorUtility.InstanceIDToObject(instanceId);
+                            var obj = EditorUtility.EntityIdToObject(instanceId);
                             if (obj == null) {
                                 error = $"No object found with instanceId: {instanceId}";
                                 return false;
@@ -408,7 +408,7 @@ namespace UnityMcp {
                             var idToken = value["instanceId"];
                             if (idToken != null && idToken.Type == JTokenType.Integer) {
                                 var instanceId = idToken.Value<int>();
-                                var obj = EditorUtility.InstanceIDToObject(instanceId);
+                                var obj = EditorUtility.EntityIdToObject(instanceId);
                                 if (obj == null) {
                                     error = $"No object found with instanceId: {instanceId}";
                                     return false;

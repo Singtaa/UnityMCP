@@ -81,7 +81,7 @@ namespace UnityMcp {
 
             // Try to find the prefab by instanceId first
             if (instanceId.HasValue) {
-                var obj = EditorUtility.InstanceIDToObject(instanceId.Value);
+                var obj = EditorUtility.EntityIdToObject(instanceId.Value);
                 if (obj is GameObject go) {
                     prefabRoot = go;
                     // Get the asset path from the object
@@ -140,7 +140,7 @@ namespace UnityMcp {
             GameObject prefabRoot = null;
 
             if (instanceId.HasValue) {
-                var obj = EditorUtility.InstanceIDToObject(instanceId.Value);
+                var obj = EditorUtility.EntityIdToObject(instanceId.Value);
                 if (obj is GameObject go) {
                     prefabRoot = go;
                 }
