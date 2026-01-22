@@ -532,9 +532,9 @@ namespace UnityMcp {
 
             if (Application.platform == RuntimePlatform.WindowsEditor) {
                 // On Windows, ensure PATH is inherited for cmd/batch file resolution
-                var currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                var winPath = Environment.GetEnvironmentVariable("PATH") ?? "";
                 if (!psi.Environment.ContainsKey("PATH")) {
-                    psi.Environment["PATH"] = currentPath;
+                    psi.Environment["PATH"] = winPath;
                 }
                 return;
             }
