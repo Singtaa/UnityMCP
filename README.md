@@ -24,7 +24,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Un
 
 ```bash
 cd YOUR_PROJECT/Packages
-git clone https://github.com/Singtaa/UnityMCP.git com.singtaa.unitymcp
+git clone https://github.com/Singtaa/UnityMCP.git com.singtaa.unity-mcp
 ```
 
 ### Via Git URL (Package Manager)
