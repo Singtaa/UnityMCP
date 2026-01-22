@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
@@ -514,10 +515,32 @@ namespace UnityMcp {
             return "node";
         }
 
+        static string _cachedNpmPath;
+
         static string GetNpmExecutable() {
+            if (!string.IsNullOrEmpty(_cachedNpmPath)) return _cachedNpmPath;
+
             if (Application.platform == RuntimePlatform.WindowsEditor) {
-                // On Windows, npm is a batch file (npm.cmd), not an executable
-                return "npm.cmd";
+                // Use 'where' to find the actual npm.cmd path to avoid picking up local node_modules/.bin/npm.cmd
+                try {
+                    var process = new Process {
+                        StartInfo = new ProcessStartInfo {
+                            FileName = "cmd.exe",
+                            Arguments = "/c where npm.cmd",
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            CreateNoWindow = true
+                        }
+                    };
+                    process.Start();
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit(5000);
+                    var firstLine = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                    if (!string.IsNullOrEmpty(firstLine) && File.Exists(firstLine)) {
+                        return _cachedNpmPath = firstLine;
+                    }
+                } catch { }
+                return _cachedNpmPath = "npm.cmd";
             }
 
             var nodePath = GetNodeExecutable();
@@ -525,10 +548,10 @@ namespace UnityMcp {
                 // Use npm from same directory as node
                 var nodeDir = Path.GetDirectoryName(nodePath);
                 var npmPath = Path.Combine(nodeDir, "npm");
-                if (File.Exists(npmPath)) return npmPath;
+                if (File.Exists(npmPath)) return _cachedNpmPath = npmPath;
             }
 
-            return "npm";
+            return _cachedNpmPath = "npm";
         }
 
         static void EnsureNodeInPath(ProcessStartInfo psi) {
