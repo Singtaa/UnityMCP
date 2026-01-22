@@ -512,7 +512,8 @@ namespace UnityMcp {
 
         static string GetNpmExecutable() {
             if (Application.platform == RuntimePlatform.WindowsEditor) {
-                return "npm";
+                // On Windows, npm is a batch file (npm.cmd), not an executable
+                return "npm.cmd";
             }
 
             var nodePath = GetNodeExecutable();
@@ -527,9 +528,17 @@ namespace UnityMcp {
         }
 
         static void EnsureNodeInPath(ProcessStartInfo psi) {
-            if (Application.platform == RuntimePlatform.WindowsEditor) return;
-
             var nodePath = GetNodeExecutable();
+
+            if (Application.platform == RuntimePlatform.WindowsEditor) {
+                // On Windows, ensure PATH is inherited for cmd/batch file resolution
+                var currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                if (!psi.Environment.ContainsKey("PATH")) {
+                    psi.Environment["PATH"] = currentPath;
+                }
+                return;
+            }
+
             if (nodePath == "node") return;
 
             var nodeDir = Path.GetDirectoryName(nodePath);
