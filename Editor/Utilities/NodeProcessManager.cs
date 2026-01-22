@@ -238,15 +238,19 @@ namespace UnityMcp {
             // Assembly is typically in Library/ScriptAssemblies/
             var projectRoot = ProjectPaths.ProjectRoot;
 
-            // Check Packages folder
-            var packagesPath = Path.Combine(projectRoot, "Packages", "com.singtaa.unity-mcp");
-            if (Directory.Exists(packagesPath)) return packagesPath;
+            // Check Packages folder (support both naming conventions)
+            var packageNames = new[] { "com.singtaa.unity-mcp", "com.singtaa.unitymcp" };
+            foreach (var packageName in packageNames) {
+                var packagesPath = Path.Combine(projectRoot, "Packages", packageName);
+                if (Directory.Exists(packagesPath)) return packagesPath;
+            }
 
             // Check Library/PackageCache for installed packages
             var packageCachePath = Path.Combine(projectRoot, "Library", "PackageCache");
             if (Directory.Exists(packageCachePath)) {
                 foreach (var dir in Directory.GetDirectories(packageCachePath)) {
-                    if (Path.GetFileName(dir).StartsWith("com.singtaa.unity-mcp@")) {
+                    var dirName = Path.GetFileName(dir);
+                    if (dirName.StartsWith("com.singtaa.unity-mcp@") || dirName.StartsWith("com.singtaa.unitymcp@")) {
                         return dir;
                     }
                 }
