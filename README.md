@@ -137,7 +137,7 @@ Settings are stored in `ProjectSettings/McpSettings.json`:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      AI Assistant                            │
+│                      AI Assistant                           │
 ├─────────────────────────────────────────────────────────────┤
 │                 HTTP JSON-RPC (Port 5173)                   │
 ├─────────────────────────────────────────────────────────────┤
@@ -145,10 +145,10 @@ Settings are stored in `ProjectSettings/McpSettings.json`:
 ├─────────────────────────────────────────────────────────────┤
 │                TCP NDJSON (Port 52100)                      │
 ├─────────────────────────────────────────────────────────────┤
-│                Unity Editor C# Bridge                        │
+│                Unity Editor C# Bridge                       │
 │  (McpBridge → ToolRegistry → MainThreadDispatcher)          │
 ├─────────────────────────────────────────────────────────────┤
-│                     Unity APIs                               │
+│                     Unity APIs                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
