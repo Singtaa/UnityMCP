@@ -20,9 +20,53 @@ namespace UnityMcp {
         static double _lastDomainReloadTime;
         const double DomainReloadStabilizationSeconds = 1.0;
 
+        // Test list cache - RetrieveTestList may fire its callback asynchronously
+        // after domain reload, so we pre-warm the cache and use it as a fallback
+        static ITestAdaptor _cachedEditModeRoot;
+        static ITestAdaptor _cachedPlayModeRoot;
+        static TestRunnerApi _cacheApi; // kept alive until async callbacks complete
+        static int _cacheCallbacksRemaining; // tracks how many callbacks we're waiting for
+
         [InitializeOnLoadMethod]
         static void OnDomainReload() {
             _lastDomainReloadTime = EditorApplication.timeSinceStartup;
+            _cachedEditModeRoot = null;
+            _cachedPlayModeRoot = null;
+            if (_cacheApi != null) {
+                ScriptableObject.DestroyImmediate(_cacheApi);
+                _cacheApi = null;
+            }
+            EditorApplication.delayCall += PreWarmTestListCache;
+        }
+
+        static void PreWarmTestListCache() {
+            if (EditorApplication.isCompiling) {
+                EditorApplication.delayCall += PreWarmTestListCache;
+                return;
+            }
+
+            if (_cacheApi != null) {
+                ScriptableObject.DestroyImmediate(_cacheApi);
+            }
+            _cacheApi = ScriptableObject.CreateInstance<TestRunnerApi>();
+            _cacheCallbacksRemaining = 2;
+
+            _cacheApi.RetrieveTestList(TestMode.EditMode, (root) => {
+                _cachedEditModeRoot = root;
+                CleanupCacheApiIfDone();
+            });
+            _cacheApi.RetrieveTestList(TestMode.PlayMode, (root) => {
+                _cachedPlayModeRoot = root;
+                CleanupCacheApiIfDone();
+            });
+        }
+
+        static void CleanupCacheApiIfDone() {
+            _cacheCallbacksRemaining--;
+            if (_cacheCallbacksRemaining <= 0 && _cacheApi != null) {
+                ScriptableObject.DestroyImmediate(_cacheApi);
+                _cacheApi = null;
+            }
         }
 
         static bool IsTestFrameworkStabilizing() {
@@ -434,8 +478,23 @@ namespace UnityMcp {
             bool[] received = { false };
             api.RetrieveTestList(mode, (rootTest) => {
                 received[0] = true;
+                // Update cache on successful retrieval
+                if (rootTest != null) {
+                    if (mode == TestMode.EditMode) _cachedEditModeRoot = rootTest;
+                    else _cachedPlayModeRoot = rootTest;
+                }
                 adaptor.OnTestListReceived(rootTest);
             });
+
+            if (!received[0]) {
+                // Callback didn't fire synchronously - fall back to cached test tree
+                var cached = mode == TestMode.EditMode ? _cachedEditModeRoot : _cachedPlayModeRoot;
+                if (cached != null) {
+                    received[0] = true;
+                    adaptor.OnTestListReceived(cached);
+                }
+            }
+
             callbackInvoked = received[0];
         }
 
@@ -445,8 +504,23 @@ namespace UnityMcp {
             bool[] callbackReceived = { false };  // Use array to allow capture in lambda
             api.RetrieveTestList(mode, (rootTest) => {
                 callbackReceived[0] = true;
+                // Update cache on successful retrieval
+                if (rootTest != null) {
+                    if (mode == TestMode.EditMode) _cachedEditModeRoot = rootTest;
+                    else _cachedPlayModeRoot = rootTest;
+                }
                 adaptor.OnTestListReceived(rootTest);
             });
+
+            if (!callbackReceived[0]) {
+                // Callback didn't fire synchronously - fall back to cached test tree
+                var cached = mode == TestMode.EditMode ? _cachedEditModeRoot : _cachedPlayModeRoot;
+                if (cached != null) {
+                    callbackReceived[0] = true;
+                    adaptor.OnTestListReceived(cached);
+                }
+            }
+
             receivedCallback = callbackReceived[0];
             return results;
         }
