@@ -218,16 +218,97 @@ namespace UnityMcp {
 
         // MARK: Internal
         static string FindServerFolder() {
-            // Look for Server~ in the package folder
             var packagePath = GetPackagePath();
             if (string.IsNullOrEmpty(packagePath)) return null;
 
             var serverPath = Path.Combine(packagePath, "Server~");
-            if (Directory.Exists(serverPath)) {
-                return serverPath;
+            if (!Directory.Exists(serverPath)) return null;
+
+            // If the package is in the immutable PackageCache, copy to a writable location
+            if (IsInPackageCache(packagePath)) {
+                return GetWritableServerPath(packagePath, serverPath);
             }
 
-            return null;
+            return serverPath;
+        }
+
+        static bool IsInPackageCache(string packagePath) {
+            var normalized = packagePath.Replace('\\', '/');
+            return normalized.Contains("Library/PackageCache");
+        }
+
+        static string GetWritableServerPath(string packagePath, string sourceServerPath) {
+            var projectRoot = ProjectPaths.ProjectRoot;
+            var writablePath = Path.Combine(projectRoot, "Library", "UnityMcp", "Server");
+
+            // Extract the hash from the PackageCache folder name (e.g., "com.singtaa.unity-mcp@abc1234")
+            var folderName = Path.GetFileName(packagePath);
+            var sourceHash = folderName.Contains("@") ? folderName.Substring(folderName.IndexOf('@') + 1) : folderName;
+
+            var hashFile = Path.Combine(writablePath, ".source-hash");
+
+            // Check if we already have an up-to-date copy
+            if (Directory.Exists(writablePath) && File.Exists(hashFile)) {
+                var existingHash = File.ReadAllText(hashFile).Trim();
+                if (existingHash == sourceHash) {
+                    return writablePath;
+                }
+            }
+
+            // Copy source files to writable location
+            Debug.Log($"[UnityMcp] Package is in immutable PackageCache, copying server files to {writablePath}");
+
+            if (Directory.Exists(writablePath)) {
+                // Remove old copy but preserve node_modules to avoid re-downloading
+                var nodeModulesPath = Path.Combine(writablePath, "node_modules");
+                var hadNodeModules = Directory.Exists(nodeModulesPath);
+                string tempNodeModules = null;
+
+                if (hadNodeModules) {
+                    tempNodeModules = Path.Combine(writablePath, ".node_modules_backup");
+                    if (Directory.Exists(tempNodeModules)) Directory.Delete(tempNodeModules, true);
+                    Directory.Move(nodeModulesPath, tempNodeModules);
+                }
+
+                // Delete everything except the backup
+                foreach (var file in Directory.GetFiles(writablePath))
+                    File.Delete(file);
+                foreach (var dir in Directory.GetDirectories(writablePath)) {
+                    if (dir == tempNodeModules) continue;
+                    Directory.Delete(dir, true);
+                }
+
+                // Restore node_modules
+                if (tempNodeModules != null && Directory.Exists(tempNodeModules)) {
+                    Directory.Move(tempNodeModules, nodeModulesPath);
+                }
+            } else {
+                Directory.CreateDirectory(writablePath);
+            }
+
+            // Copy source files
+            CopyDirectory(sourceServerPath, writablePath, skipNodeModules: true);
+
+            // Write source hash marker
+            File.WriteAllText(hashFile, sourceHash);
+
+            return writablePath;
+        }
+
+        static void CopyDirectory(string source, string destination, bool skipNodeModules = false) {
+            if (!Directory.Exists(destination))
+                Directory.CreateDirectory(destination);
+
+            foreach (var file in Directory.GetFiles(source)) {
+                var destFile = Path.Combine(destination, Path.GetFileName(file));
+                File.Copy(file, destFile, true);
+            }
+
+            foreach (var dir in Directory.GetDirectories(source)) {
+                var dirName = Path.GetFileName(dir);
+                if (skipNodeModules && dirName == "node_modules") continue;
+                CopyDirectory(dir, Path.Combine(destination, dirName));
+            }
         }
 
         static string GetPackagePath() {
