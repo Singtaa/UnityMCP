@@ -161,7 +161,14 @@ namespace UnityMcp {
                     return false;
                 }
 
-                // 3. Check/install node_modules
+                // 3. Verify server files exist
+                var packageJsonPath = Path.Combine(_serverPath, "package.json");
+                if (!File.Exists(packageJsonPath)) {
+                    Debug.LogError($"[UnityMcp] package.json not found in server folder: {_serverPath}");
+                    return false;
+                }
+
+                // 4. Check/install node_modules
                 var nodeModulesPath = Path.Combine(_serverPath, "node_modules");
                 if (!Directory.Exists(nodeModulesPath)) {
                     Debug.Log("[UnityMcp] Installing dependencies (first run)...");
@@ -172,7 +179,7 @@ namespace UnityMcp {
                     Debug.Log("[UnityMcp] Dependencies installed successfully");
                 }
 
-                // 4. Check if server already running (survived domain reload or another Unity instance)
+                // 5. Check if server already running (survived domain reload or another Unity instance)
                 // We check the IPC port since that's what Unity connects to
                 if (await IsPortInUse(McpSettings.IpcPort)) {
                     if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Server already running (IPC port {McpSettings.IpcPort} in use)");
@@ -181,7 +188,7 @@ namespace UnityMcp {
                     return true;
                 }
 
-                // 5. Start new server
+                // 6. Start new server
                 return await StartServerAsync();
             } finally {
                 _isStarting = false;
@@ -362,8 +369,9 @@ namespace UnityMcp {
 
         static async Task<bool> RunNpmInstall() {
             try {
+                var npmExe = GetNpmExecutable();
                 var psi = new ProcessStartInfo {
-                    FileName = GetNpmExecutable(),
+                    FileName = npmExe,
                     Arguments = "install",
                     WorkingDirectory = _serverPath,
                     UseShellExecute = false,
@@ -374,6 +382,8 @@ namespace UnityMcp {
 
                 // Ensure PATH includes the node/npm directory
                 EnsureNodeInPath(psi);
+
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Running: {npmExe} install (cwd: {_serverPath})");
 
                 using (var process = Process.Start(psi)) {
                     if (process == null) return false;
@@ -387,7 +397,8 @@ namespace UnityMcp {
                     var error = await errorTask;
 
                     if (process.ExitCode != 0) {
-                        Debug.LogError($"[UnityMcp] npm install failed:\n{error}");
+                        var details = !string.IsNullOrWhiteSpace(error) ? error : output;
+                        Debug.LogError($"[UnityMcp] npm install failed (exit code {process.ExitCode}):\n{details}");
                         return false;
                     }
 
