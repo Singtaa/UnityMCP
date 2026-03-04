@@ -306,32 +306,13 @@ namespace UnityMcp {
         }
 
         static string GetPackagePath() {
-            // Find the package path by looking for our assembly
-            var assembly = typeof(NodeProcessManager).Assembly;
-            var assemblyPath = assembly.Location;
-
-            // Navigate up from the assembly location to find the package root
-            // Assembly is typically in Library/ScriptAssemblies/
-            var projectRoot = ProjectPaths.ProjectRoot;
-
-            // Check Packages folder (support both naming conventions)
-            var packageNames = new[] { "com.singtaa.unity-mcp", "com.singtaa.unitymcp" };
-            foreach (var packageName in packageNames) {
-                var packagesPath = Path.Combine(projectRoot, "Packages", packageName);
-                if (Directory.Exists(packagesPath)) return packagesPath;
-            }
-
-            // Check Library/PackageCache for installed packages
-            var packageCachePath = Path.Combine(projectRoot, "Library", "PackageCache");
-            if (Directory.Exists(packageCachePath)) {
-                foreach (var dir in Directory.GetDirectories(packageCachePath)) {
-                    var dirName = Path.GetFileName(dir);
-                    if (dirName.StartsWith("com.singtaa.unity-mcp@") || dirName.StartsWith("com.singtaa.unitymcp@")) {
-                        return dir;
-                    }
-                }
-            }
-
+            // Use Unity's PackageInfo API to get the real physical path.
+            // This correctly resolves git URL installs (Library/PackageCache/),
+            // local installs (Packages/), and embedded packages.
+            // Note: Packages/<name> is a virtual path remapped by Unity's patched Mono —
+            // Directory.Exists() returns true but the OS can't access it for Process.Start.
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(NodeProcessManager).Assembly);
+            if (packageInfo != null) return packageInfo.resolvedPath;
             return null;
         }
 
@@ -369,25 +350,9 @@ namespace UnityMcp {
 
         static async Task<bool> RunNpmInstall() {
             try {
-                var nodeExe = GetNodeExecutable();
-                var npmExe = GetNpmExecutable();
-
-                string fileName, arguments;
-
-                // On macOS/Linux, npm is a JS script with #!/usr/bin/env node shebang.
-                // When Unity is launched from Finder, env can't find node (exit code 255).
-                // Run npm through node directly to bypass shebang resolution.
-                if (Application.platform != RuntimePlatform.WindowsEditor && npmExe != "npm") {
-                    fileName = nodeExe;
-                    arguments = $"\"{npmExe}\" install";
-                } else {
-                    fileName = npmExe;
-                    arguments = "install";
-                }
-
                 var psi = new ProcessStartInfo {
-                    FileName = fileName,
-                    Arguments = arguments,
+                    FileName = GetNpmExecutable(),
+                    Arguments = "install",
                     WorkingDirectory = _serverPath,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -398,13 +363,7 @@ namespace UnityMcp {
                 // Ensure PATH includes the node/npm directory
                 EnsureNodeInPath(psi);
 
-                // Diagnostic logging (always on for now)
-                Debug.Log($"[UnityMcp] npm install diagnostics:" +
-                    $"\n  FileName: {fileName} (exists: {File.Exists(fileName)})" +
-                    $"\n  Arguments: {arguments}" +
-                    $"\n  WorkingDirectory: {_serverPath} (exists: {Directory.Exists(_serverPath)})" +
-                    $"\n  package.json exists: {File.Exists(Path.Combine(_serverPath, "package.json"))}" +
-                    $"\n  PATH: {(psi.Environment.ContainsKey("PATH") ? psi.Environment["PATH"] : "(not set)")}");
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Running: {psi.FileName} install (cwd: {_serverPath})");
 
                 using (var process = Process.Start(psi)) {
                     if (process == null) return false;
