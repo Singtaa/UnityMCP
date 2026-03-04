@@ -27,7 +27,7 @@ cd YOUR_PROJECT/Packages
 git clone https://github.com/Singtaa/UnityMCP.git com.singtaa.unity-mcp
 ```
 
-### Via Git URL (Package Manager)
+### Via Git URL (Package Manager) (Recommended)
 
 1. Open Window > Package Manager
 2. Click the + button > Add package from git URL

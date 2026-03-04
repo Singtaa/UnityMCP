@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Track all `.meta` files in git so the package can be installed via UPM git URL without "missing .meta files" errors
+
 ### Added
 
 - **Prefab tools** for editing prefab assets:
