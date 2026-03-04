@@ -1,6 +1,6 @@
 {
     "name": "com.singtaa.unity-mcp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "displayName": "Unity MCP Server",
     "description": "Model Context Protocol (MCP) server for Unity Editor, enabling AI assistants to interact with Unity projects.",
     "unity": "6000.0",
