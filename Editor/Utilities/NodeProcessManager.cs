@@ -234,7 +234,10 @@ namespace UnityMcp {
 
         static bool IsInPackageCache(string packagePath) {
             var normalized = packagePath.Replace('\\', '/');
-            return normalized.Contains("Library/PackageCache");
+            var comparison = Application.platform == RuntimePlatform.WindowsEditor
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            return normalized.IndexOf("Library/PackageCache", comparison) >= 0;
         }
 
         static string GetWritableServerPath(string packagePath, string sourceServerPath) {
@@ -255,42 +258,26 @@ namespace UnityMcp {
                 }
             }
 
-            // Copy source files to writable location
+            // Copy source files to writable location (hash changed = package updated)
             Debug.Log($"[UnityMcp] Package is in immutable PackageCache, copying server files to {writablePath}");
 
-            if (Directory.Exists(writablePath)) {
-                // Remove old copy but preserve node_modules to avoid re-downloading
-                var nodeModulesPath = Path.Combine(writablePath, "node_modules");
-                var hadNodeModules = Directory.Exists(nodeModulesPath);
-                string tempNodeModules = null;
-
-                if (hadNodeModules) {
-                    tempNodeModules = Path.Combine(writablePath, ".node_modules_backup");
-                    if (Directory.Exists(tempNodeModules)) Directory.Delete(tempNodeModules, true);
-                    Directory.Move(nodeModulesPath, tempNodeModules);
+            try {
+                if (Directory.Exists(writablePath)) {
+                    // Hash changed means package was updated — delete everything including
+                    // node_modules so npm install picks up any dependency changes
+                    Directory.Delete(writablePath, true);
                 }
-
-                // Delete everything except the backup
-                foreach (var file in Directory.GetFiles(writablePath))
-                    File.Delete(file);
-                foreach (var dir in Directory.GetDirectories(writablePath)) {
-                    if (dir == tempNodeModules) continue;
-                    Directory.Delete(dir, true);
-                }
-
-                // Restore node_modules
-                if (tempNodeModules != null && Directory.Exists(tempNodeModules)) {
-                    Directory.Move(tempNodeModules, nodeModulesPath);
-                }
-            } else {
                 Directory.CreateDirectory(writablePath);
+
+                // Copy source files (skip node_modules from source if any exist there)
+                CopyDirectory(sourceServerPath, writablePath, skipNodeModules: true);
+
+                // Write source hash marker
+                File.WriteAllText(hashFile, sourceHash);
+            } catch (Exception e) {
+                Debug.LogError($"[UnityMcp] Failed to copy server files to writable location: {e.Message}");
+                return null;
             }
-
-            // Copy source files
-            CopyDirectory(sourceServerPath, writablePath, skipNodeModules: true);
-
-            // Write source hash marker
-            File.WriteAllText(hashFile, sourceHash);
 
             return writablePath;
         }
