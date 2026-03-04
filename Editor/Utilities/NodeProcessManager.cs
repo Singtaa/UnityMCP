@@ -398,7 +398,13 @@ namespace UnityMcp {
                 // Ensure PATH includes the node/npm directory
                 EnsureNodeInPath(psi);
 
-                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Running: {fileName} {arguments} (cwd: {_serverPath})");
+                // Diagnostic logging (always on for now)
+                Debug.Log($"[UnityMcp] npm install diagnostics:" +
+                    $"\n  FileName: {fileName} (exists: {File.Exists(fileName)})" +
+                    $"\n  Arguments: {arguments}" +
+                    $"\n  WorkingDirectory: {_serverPath} (exists: {Directory.Exists(_serverPath)})" +
+                    $"\n  package.json exists: {File.Exists(Path.Combine(_serverPath, "package.json"))}" +
+                    $"\n  PATH: {(psi.Environment.ContainsKey("PATH") ? psi.Environment["PATH"] : "(not set)")}");
 
                 using (var process = Process.Start(psi)) {
                     if (process == null) return false;
