@@ -369,10 +369,25 @@ namespace UnityMcp {
 
         static async Task<bool> RunNpmInstall() {
             try {
+                var nodeExe = GetNodeExecutable();
                 var npmExe = GetNpmExecutable();
+
+                string fileName, arguments;
+
+                // On macOS/Linux, npm is a JS script with #!/usr/bin/env node shebang.
+                // When Unity is launched from Finder, env can't find node (exit code 255).
+                // Run npm through node directly to bypass shebang resolution.
+                if (Application.platform != RuntimePlatform.WindowsEditor && npmExe != "npm") {
+                    fileName = nodeExe;
+                    arguments = $"\"{npmExe}\" install";
+                } else {
+                    fileName = npmExe;
+                    arguments = "install";
+                }
+
                 var psi = new ProcessStartInfo {
-                    FileName = npmExe,
-                    Arguments = "install",
+                    FileName = fileName,
+                    Arguments = arguments,
                     WorkingDirectory = _serverPath,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -383,7 +398,7 @@ namespace UnityMcp {
                 // Ensure PATH includes the node/npm directory
                 EnsureNodeInPath(psi);
 
-                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Running: {npmExe} install (cwd: {_serverPath})");
+                if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Running: {fileName} {arguments} (cwd: {_serverPath})");
 
                 using (var process = Process.Start(psi)) {
                     if (process == null) return false;
