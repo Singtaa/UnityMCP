@@ -28,8 +28,8 @@ namespace UnityMcp {
             // Try instanceId first (format: "#12345")
             if (identifier.StartsWith("#", StringComparison.Ordinal)) {
                 var idStr = identifier.Substring(1);
-                if (int.TryParse(idStr, out var id)) {
-                    go = EditorUtility.EntityIdToObject(id) as GameObject;
+                if (long.TryParse(idStr, out var id)) {
+                    go = EntityIdCompat.IdToObject(id) as GameObject;
                     if (go != null) return true;
                     error = $"No GameObject with instanceId {id}.";
                     return false;

@@ -32,7 +32,7 @@ namespace UnityMcp.Tests {
         [Test]
         public void TryResolve_ValidInstanceId_ReturnsGameObject() {
             var testGo = new GameObject("TestObject");
-            var instanceId = testGo.GetInstanceID();
+            var instanceId = EntityIdCompat.GetId(testGo);
 
             var result = GameObjectResolver.TryResolve($"#{instanceId}", out var go, out var error);
 

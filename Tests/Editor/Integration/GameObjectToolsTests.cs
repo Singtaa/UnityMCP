@@ -14,7 +14,7 @@ namespace UnityMcp.Tests {
         [TearDown]
         public void TearDown() {
             // Clean up all test objects
-            var objects = Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
+            var objects = FindCompat.FindObjectsByType<GameObject>();
             foreach (var obj in objects) {
                 Object.DestroyImmediate(obj);
             }
@@ -173,7 +173,7 @@ namespace UnityMcp.Tests {
             Assert.IsFalse(result.isError);
 
             // Should have 2 objects named "Original" now
-            var objects = Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
+            var objects = FindCompat.FindObjectsByType<GameObject>();
             var count = 0;
             foreach (var obj in objects) {
                 if (obj.name == "Original") count++;

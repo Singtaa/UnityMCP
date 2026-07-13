@@ -844,7 +844,7 @@ namespace UnityMcp {
                 return new {
                     type = type.FullName,
                     name = unityObj.name,
-                    instanceId = unityObj.GetInstanceID()
+                    instanceId = EntityIdCompat.GetId(unityObj)
                 };
             }
 

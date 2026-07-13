@@ -92,7 +92,7 @@ namespace UnityMcp.Tests {
 
         [Test]
         public void GetHierarchy_WithInstanceId_Works() {
-            var args = new JObject { ["instanceId"] = _prefabInstance.GetInstanceID() };
+            var args = new JObject { ["instanceId"] = EntityIdCompat.GetId(_prefabInstance) };
 
             var result = Tools_Prefab.GetHierarchy(args);
 
@@ -164,7 +164,7 @@ namespace UnityMcp.Tests {
 
         [Test]
         public void Save_ByInstanceId_Succeeds() {
-            var args = new JObject { ["instanceId"] = _prefabInstance.GetInstanceID() };
+            var args = new JObject { ["instanceId"] = EntityIdCompat.GetId(_prefabInstance) };
 
             var result = Tools_Prefab.Save(args);
 

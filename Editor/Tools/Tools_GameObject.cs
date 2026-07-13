@@ -38,7 +38,7 @@ namespace UnityMcp {
             EditorSceneManager.MarkSceneDirty(go.scene);
 
             return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
-                instanceId = go.GetInstanceID(),
+                instanceId = EntityIdCompat.GetId(go),
                 path = GameObjectResolver.GetQualifiedPath(go)
             }));
         }
@@ -115,7 +115,7 @@ namespace UnityMcp {
 
         static object MakeGoInfo(GameObject go) {
             return new {
-                instanceId = go.GetInstanceID(),
+                instanceId = EntityIdCompat.GetId(go),
                 name = go.name,
                 path = GameObjectResolver.GetQualifiedPath(go),
                 activeSelf = go.activeSelf,
@@ -187,7 +187,7 @@ namespace UnityMcp {
             EditorSceneManager.MarkSceneDirty(go.scene);
 
             return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
-                instanceId = go.GetInstanceID(),
+                instanceId = EntityIdCompat.GetId(go),
                 path = GameObjectResolver.GetQualifiedPath(go)
             }));
         }
@@ -208,7 +208,7 @@ namespace UnityMcp {
             EditorSceneManager.MarkSceneDirty(clone.scene);
 
             return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
-                instanceId = clone.GetInstanceID(),
+                instanceId = EntityIdCompat.GetId(clone),
                 path = GameObjectResolver.GetQualifiedPath(clone)
             }));
         }

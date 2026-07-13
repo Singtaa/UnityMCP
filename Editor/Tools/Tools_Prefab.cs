@@ -39,7 +39,7 @@ namespace UnityMcp {
                 }
                 compList.Add(new {
                     type = c.GetType().FullName,
-                    instanceId = c.GetInstanceID(),
+                    instanceId = EntityIdCompat.GetId(c),
                     enabled = (c is Behaviour b) ? b.enabled : (bool?)null
                 });
             }
@@ -51,14 +51,14 @@ namespace UnityMcp {
                 var child = prefab.transform.GetChild(i);
                 children.Add(new {
                     name = child.name,
-                    instanceId = child.gameObject.GetInstanceID()
+                    instanceId = EntityIdCompat.GetId(child.gameObject)
                 });
             }
 
             var result = new {
                 path = path,
                 name = prefab.name,
-                instanceId = prefab.GetInstanceID(),
+                instanceId = EntityIdCompat.GetId(prefab),
                 components = compList,
                 childCount = childCount,
                 children = children,
@@ -75,13 +75,13 @@ namespace UnityMcp {
         /// </summary>
         public static ToolResult Save(JObject args) {
             var path = args.Value<string>("path");
-            var instanceId = args.Value<int?>("instanceId");
+            var instanceId = args.Value<long?>("instanceId");
 
             GameObject prefabRoot = null;
 
             // Try to find the prefab by instanceId first
             if (instanceId.HasValue) {
-                var obj = EditorUtility.EntityIdToObject(instanceId.Value);
+                var obj = EntityIdCompat.IdToObject(instanceId.Value);
                 if (obj is GameObject go) {
                     prefabRoot = go;
                     // Get the asset path from the object
@@ -121,7 +121,7 @@ namespace UnityMcp {
                 return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
                     message = "Prefab saved successfully.",
                     path = path,
-                    instanceId = prefabRoot.GetInstanceID()
+                    instanceId = EntityIdCompat.GetId(prefabRoot)
                 }));
             } catch (Exception e) {
                 return ToolResultUtil.Text($"Failed to save prefab: {e.Message}", true);
@@ -134,13 +134,13 @@ namespace UnityMcp {
         /// </summary>
         public static ToolResult GetHierarchy(JObject args) {
             var path = args.Value<string>("path");
-            var instanceId = args.Value<int?>("instanceId");
+            var instanceId = args.Value<long?>("instanceId");
             var maxDepth = args.Value<int?>("maxDepth") ?? 10;
 
             GameObject prefabRoot = null;
 
             if (instanceId.HasValue) {
-                var obj = EditorUtility.EntityIdToObject(instanceId.Value);
+                var obj = EntityIdCompat.IdToObject(instanceId.Value);
                 if (obj is GameObject go) {
                     prefabRoot = go;
                 }
@@ -171,7 +171,7 @@ namespace UnityMcp {
             var comps = t.GetComponents<Component>();
             var compList = comps.Where(c => c != null).Select(c => new {
                 type = c.GetType().Name,
-                instanceId = c.GetInstanceID()
+                instanceId = EntityIdCompat.GetId(c)
             }).ToList();
 
             var children = new List<object>();
@@ -183,7 +183,7 @@ namespace UnityMcp {
 
             return new {
                 name = t.name,
-                instanceId = t.gameObject.GetInstanceID(),
+                instanceId = EntityIdCompat.GetId(t.gameObject),
                 components = compList,
                 children = children
             };
@@ -245,7 +245,7 @@ namespace UnityMcp {
                 prefabPath = prefabPath,
                 childPath = childPath ?? "",
                 componentType = comp.GetType().FullName,
-                instanceId = comp.GetInstanceID(),
+                instanceId = EntityIdCompat.GetId(comp),
                 properties = props
             }, Formatting.Indented));
         }
@@ -288,7 +288,7 @@ namespace UnityMcp {
                 case SerializedPropertyType.Color: return new[] { prop.colorValue.r, prop.colorValue.g, prop.colorValue.b, prop.colorValue.a };
                 case SerializedPropertyType.ObjectReference:
                     return prop.objectReferenceValue != null
-                        ? new { instanceId = prop.objectReferenceValue.GetInstanceID(), name = prop.objectReferenceValue.name }
+                        ? new { instanceId = EntityIdCompat.GetId(prop.objectReferenceValue), name = prop.objectReferenceValue.name }
                         : null;
                 default: return $"({prop.propertyType})";
             }

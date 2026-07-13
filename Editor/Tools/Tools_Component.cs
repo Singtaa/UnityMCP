@@ -29,7 +29,7 @@ namespace UnityMcp {
                 }
                 list.Add(new {
                     type = c.GetType().FullName,
-                    instanceId = c.GetInstanceID(),
+                    instanceId = EntityIdCompat.GetId(c),
                     enabled = (c is Behaviour b) ? b.enabled : (bool?)null
                 });
             }
@@ -63,7 +63,7 @@ namespace UnityMcp {
 
             return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
                 type = comp.GetType().FullName,
-                instanceId = comp.GetInstanceID()
+                instanceId = EntityIdCompat.GetId(comp)
             }));
         }
 
@@ -71,7 +71,7 @@ namespace UnityMcp {
         public static ToolResult Remove(JObject args) {
             var id = args.Value<string>("target");
             var typeName = args.Value<string>("type");
-            var compInstanceId = args.Value<int?>("componentInstanceId");
+            var compInstanceId = args.Value<long?>("componentInstanceId");
 
             if (string.IsNullOrEmpty(id)) return ToolResultUtil.Text("Missing param: target", true);
 
@@ -83,7 +83,7 @@ namespace UnityMcp {
 
             if (compInstanceId.HasValue) {
                 toRemove = go.GetComponents<Component>()
-                    .FirstOrDefault(c => c != null && c.GetInstanceID() == compInstanceId.Value);
+                    .FirstOrDefault(c => c != null && EntityIdCompat.GetId(c) == compInstanceId.Value);
             } else if (!string.IsNullOrEmpty(typeName)) {
                 var type = FindComponentType(typeName);
                 if (type != null) {
@@ -112,7 +112,7 @@ namespace UnityMcp {
         public static ToolResult SetEnabled(JObject args) {
             var id = args.Value<string>("target");
             var typeName = args.Value<string>("type");
-            var compInstanceId = args.Value<int?>("componentInstanceId");
+            var compInstanceId = args.Value<long?>("componentInstanceId");
             var enabled = args.Value<bool?>("enabled") ?? true;
 
             if (string.IsNullOrEmpty(id)) return ToolResultUtil.Text("Missing param: target", true);
@@ -125,7 +125,7 @@ namespace UnityMcp {
 
             if (compInstanceId.HasValue) {
                 comp = go.GetComponents<Component>()
-                    .FirstOrDefault(c => c != null && c.GetInstanceID() == compInstanceId.Value);
+                    .FirstOrDefault(c => c != null && EntityIdCompat.GetId(c) == compInstanceId.Value);
             } else if (!string.IsNullOrEmpty(typeName)) {
                 var type = FindComponentType(typeName);
                 if (type != null) {
@@ -153,7 +153,7 @@ namespace UnityMcp {
         public static ToolResult GetProperties(JObject args) {
             var id = args.Value<string>("target");
             var typeName = args.Value<string>("type");
-            var compInstanceId = args.Value<int?>("componentInstanceId");
+            var compInstanceId = args.Value<long?>("componentInstanceId");
 
             if (string.IsNullOrEmpty(id)) return ToolResultUtil.Text("Missing param: target", true);
 
@@ -165,7 +165,7 @@ namespace UnityMcp {
 
             if (compInstanceId.HasValue) {
                 comp = go.GetComponents<Component>()
-                    .FirstOrDefault(c => c != null && c.GetInstanceID() == compInstanceId.Value);
+                    .FirstOrDefault(c => c != null && EntityIdCompat.GetId(c) == compInstanceId.Value);
             } else if (!string.IsNullOrEmpty(typeName)) {
                 var type = FindComponentType(typeName);
                 if (type != null) {
@@ -197,7 +197,7 @@ namespace UnityMcp {
 
             return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
                 type = comp.GetType().FullName,
-                instanceId = comp.GetInstanceID(),
+                instanceId = EntityIdCompat.GetId(comp),
                 properties = props
             }, Formatting.Indented));
         }
@@ -206,7 +206,7 @@ namespace UnityMcp {
         public static ToolResult SetProperty(JObject args) {
             var id = args.Value<string>("target");
             var typeName = args.Value<string>("type");
-            var compInstanceId = args.Value<int?>("componentInstanceId");
+            var compInstanceId = args.Value<long?>("componentInstanceId");
             var propertyPath = args.Value<string>("property");
             var valueToken = args["value"];
 
@@ -222,7 +222,7 @@ namespace UnityMcp {
 
             if (compInstanceId.HasValue) {
                 comp = go.GetComponents<Component>()
-                    .FirstOrDefault(c => c != null && c.GetInstanceID() == compInstanceId.Value);
+                    .FirstOrDefault(c => c != null && EntityIdCompat.GetId(c) == compInstanceId.Value);
             } else if (!string.IsNullOrEmpty(typeName)) {
                 var type = FindComponentType(typeName);
                 if (type != null) {
@@ -326,7 +326,7 @@ namespace UnityMcp {
                 case SerializedPropertyType.Rect: return new[] { prop.rectValue.x, prop.rectValue.y, prop.rectValue.width, prop.rectValue.height };
                 case SerializedPropertyType.ObjectReference:
                     return prop.objectReferenceValue != null
-                        ? new { instanceId = prop.objectReferenceValue.GetInstanceID(), name = prop.objectReferenceValue.name }
+                        ? new { instanceId = EntityIdCompat.GetId(prop.objectReferenceValue), name = prop.objectReferenceValue.name }
                         : null;
                 default: return $"({prop.propertyType})";
             }
@@ -394,8 +394,8 @@ namespace UnityMcp {
                         }
                         // Accept instanceId as integer
                         if (value.Type == JTokenType.Integer) {
-                            var instanceId = value.Value<int>();
-                            var obj = EditorUtility.EntityIdToObject(instanceId);
+                            var instanceId = value.Value<long>();
+                            var obj = EntityIdCompat.IdToObject(instanceId);
                             if (obj == null) {
                                 error = $"No object found with instanceId: {instanceId}";
                                 return false;
@@ -407,8 +407,8 @@ namespace UnityMcp {
                         if (value.Type == JTokenType.Object) {
                             var idToken = value["instanceId"];
                             if (idToken != null && idToken.Type == JTokenType.Integer) {
-                                var instanceId = idToken.Value<int>();
-                                var obj = EditorUtility.EntityIdToObject(instanceId);
+                                var instanceId = idToken.Value<long>();
+                                var obj = EntityIdCompat.IdToObject(instanceId);
                                 if (obj == null) {
                                     error = $"No object found with instanceId: {instanceId}";
                                     return false;
@@ -440,7 +440,7 @@ namespace UnityMcp {
                             prop.objectReferenceValue = obj;
                             return true;
                         }
-                        error = "ObjectReference requires instanceId (int), assetPath (string), or {instanceId: int} / {assetPath: string}";
+                        error = "ObjectReference requires instanceId (number), assetPath (string), or {instanceId: number} / {assetPath: string}";
                         return false;
                     default:
                         error = $"Cannot set property type: {prop.propertyType}";

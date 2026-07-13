@@ -123,7 +123,7 @@ namespace UnityMcp {
                 name = t.name,
                 activeSelf = t.gameObject.activeSelf,
                 activeInHierarchy = t.gameObject.activeInHierarchy,
-                instanceId = t.gameObject.GetInstanceID(),
+                instanceId = EntityIdCompat.GetId(t.gameObject),
                 childCount = t.childCount
             });
 

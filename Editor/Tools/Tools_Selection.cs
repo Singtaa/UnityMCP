@@ -13,7 +13,7 @@ namespace UnityMcp {
             foreach (var go in selected) {
                 if (go == null) continue;
                 list.Add(new {
-                    instanceId = go.GetInstanceID(),
+                    instanceId = EntityIdCompat.GetId(go),
                     name = go.name,
                     path = GameObjectResolver.GetQualifiedPath(go)
                 });
@@ -23,7 +23,7 @@ namespace UnityMcp {
                 count = list.Count,
                 activeObject = Selection.activeGameObject != null
                     ? new {
-                        instanceId = Selection.activeGameObject.GetInstanceID(),
+                        instanceId = EntityIdCompat.GetId(Selection.activeGameObject),
                         name = Selection.activeGameObject.name,
                         path = GameObjectResolver.GetQualifiedPath(Selection.activeGameObject)
                     }

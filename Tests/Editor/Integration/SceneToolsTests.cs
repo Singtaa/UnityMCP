@@ -60,7 +60,7 @@ namespace UnityMcp.Tests {
             Assert.IsTrue((bool)json["isLoaded"]);
 
             // Default scene should have a camera and light
-            var camera = Object.FindFirstObjectByType<Camera>();
+            var camera = Object.FindAnyObjectByType<Camera>();
             Assert.IsNotNull(camera);
         }
 

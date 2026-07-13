@@ -209,7 +209,7 @@ namespace UnityMcp {
         static bool TryFindActivePanelInScene(out PanelSettings panel, out string ownerName) {
             panel = null;
             ownerName = null;
-            var docs = UnityEngine.Object.FindObjectsByType<UIDocument>(FindObjectsSortMode.None);
+            var docs = FindCompat.FindObjectsByType<UIDocument>();
             foreach (var doc in docs) {
                 if (doc != null && doc.panelSettings != null && doc.isActiveAndEnabled) {
                     panel = doc.panelSettings;
@@ -228,7 +228,7 @@ namespace UnityMcp {
         }
 
         static void MarkDocumentsDirtyForPanel(PanelSettings panel) {
-            var docs = UnityEngine.Object.FindObjectsByType<UIDocument>(FindObjectsSortMode.None);
+            var docs = FindCompat.FindObjectsByType<UIDocument>();
             foreach (var doc in docs) {
                 if (doc != null && doc.panelSettings == panel) {
                     doc.rootVisualElement?.MarkDirtyRepaint();

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Compile errors on Unity 6.5, where the `InstanceID` APIs (`GetInstanceID`, `EditorUtility.InstanceIDToObject`) become hard errors in favor of 64-bit `EntityId`. All usage now goes through `EntityIdCompat`, which uses `EntityId` on 6000.4+ and falls back to `InstanceID` on older versions (down to 2022.3). `FindCompat` similarly wraps the deprecated `FindObjectsByType(FindObjectsSortMode)` overloads. Object ids still cross the MCP wire as JSON numbers, but are now `long`; on Unity 6.4+ they are `EntityId` values that can exceed the 32-bit range and remain session-scoped as before.
+
 ### Changed
 
 - Lowered minimum Unity version from `6000.0` to `2022.3` LTS. No code changes were required: all Unity APIs in use are available in 2022.2+, and internal UIElements reflection calls (`UIElementsRuntimeUtility.UpdatePanels`/`RenderOffscreenPanels`/`BaseRuntimePanel.RenderPanel`) have null-checks that degrade gracefully if signatures differ. Unity 6 remains the recommended target.

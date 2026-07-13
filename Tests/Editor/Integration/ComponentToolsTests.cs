@@ -24,7 +24,7 @@ namespace UnityMcp.Tests {
         [TearDown]
         public void TearDown() {
             // Clean up all test objects
-            var objects = Object.FindObjectsByType<GameObject>(FindObjectsSortMode.None);
+            var objects = FindCompat.FindObjectsByType<GameObject>();
             foreach (var obj in objects) {
                 Object.DestroyImmediate(obj);
             }
@@ -44,7 +44,7 @@ namespace UnityMcp.Tests {
                 ["target"] = go.name,
                 ["type"] = "MeshRenderer",
                 ["property"] = "m_Materials.Array.data[0]",
-                ["value"] = _testMaterial.GetInstanceID()
+                ["value"] = EntityIdCompat.GetId(_testMaterial)
             };
 
             var result = Tools_Component.SetProperty(args);
@@ -80,7 +80,7 @@ namespace UnityMcp.Tests {
                 ["target"] = go.name,
                 ["type"] = "MeshRenderer",
                 ["property"] = "m_Materials.Array.data[0]",
-                ["value"] = new JObject { ["instanceId"] = _testMaterial.GetInstanceID() }
+                ["value"] = new JObject { ["instanceId"] = EntityIdCompat.GetId(_testMaterial) }
             };
 
             var result = Tools_Component.SetProperty(args);
@@ -177,7 +177,7 @@ namespace UnityMcp.Tests {
             // Material is in the array
             var material = props["m_Materials.Array.data[0]"];
             Assert.IsNotNull(material);
-            Assert.AreEqual(_testMaterial.GetInstanceID(), material["instanceId"].Value<int>());
+            Assert.AreEqual(EntityIdCompat.GetId(_testMaterial), material["instanceId"].Value<long>());
         }
     }
 }
