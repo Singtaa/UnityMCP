@@ -341,7 +341,7 @@ const _defs = [
             properties: {
                 target: { type: "string" },
                 type: { type: "string" },
-                componentInstanceId: { type: "integer" },
+                componentInstanceId: { type: ["string", "integer"], description: "Component instance id from unity_component_list (pass the string verbatim; ids can exceed JS safe-integer range)" },
             },
             required: ["target"],
             additionalProperties: false,
@@ -356,7 +356,7 @@ const _defs = [
             properties: {
                 target: { type: "string" },
                 type: { type: "string" },
-                componentInstanceId: { type: "integer" },
+                componentInstanceId: { type: ["string", "integer"], description: "Component instance id from unity_component_list (pass the string verbatim; ids can exceed JS safe-integer range)" },
                 enabled: { type: "boolean", default: true },
             },
             required: ["target"],
@@ -372,7 +372,7 @@ const _defs = [
             properties: {
                 target: { type: "string" },
                 type: { type: "string" },
-                componentInstanceId: { type: "integer" },
+                componentInstanceId: { type: ["string", "integer"], description: "Component instance id from unity_component_list (pass the string verbatim; ids can exceed JS safe-integer range)" },
             },
             required: ["target"],
             additionalProperties: false,
@@ -387,7 +387,7 @@ const _defs = [
             properties: {
                 target: { type: "string" },
                 type: { type: "string" },
-                componentInstanceId: { type: "integer" },
+                componentInstanceId: { type: ["string", "integer"], description: "Component instance id from unity_component_list (pass the string verbatim; ids can exceed JS safe-integer range)" },
                 property: { type: "string", description: "Property path (e.g., m_Mass, m_IsKinematic)" },
                 value: { description: "Value to set (type depends on property)" },
             },
@@ -766,7 +766,7 @@ const _defs = [
                     description: "Asset path to the prefab. Can be omitted if instanceId is provided."
                 },
                 instanceId: {
-                    type: "integer",
+                    type: ["string", "integer"],
                     description: "Instance ID of the prefab root GameObject (from unity_prefab_load)."
                 },
             },
@@ -785,7 +785,7 @@ const _defs = [
                     description: "Asset path to the prefab."
                 },
                 instanceId: {
-                    type: "integer",
+                    type: ["string", "integer"],
                     description: "Instance ID of the prefab root GameObject."
                 },
                 maxDepth: {

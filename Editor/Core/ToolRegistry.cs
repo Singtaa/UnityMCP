@@ -21,7 +21,7 @@ namespace UnityMcp {
             public string path;
             public bool activeSelf;
             public bool activeInHierarchy;
-            public long instanceId;
+            public string instanceId;
         }
 
         sealed class ProjectEntry {
@@ -251,7 +251,7 @@ namespace UnityMcp {
                 path = GetTransformPath(t),
                 activeSelf = t.gameObject.activeSelf,
                 activeInHierarchy = t.gameObject.activeInHierarchy,
-                instanceId = EntityIdCompat.GetId(t.gameObject)
+                instanceId = EntityIdCompat.GetIdString(t.gameObject)
             });
 
             for (var i = 0; i < t.childCount; i++) {

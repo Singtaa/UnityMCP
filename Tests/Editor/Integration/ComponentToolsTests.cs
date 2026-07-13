@@ -80,7 +80,7 @@ namespace UnityMcp.Tests {
                 ["target"] = go.name,
                 ["type"] = "MeshRenderer",
                 ["property"] = "m_Materials.Array.data[0]",
-                ["value"] = new JObject { ["instanceId"] = EntityIdCompat.GetId(_testMaterial) }
+                ["value"] = new JObject { ["instanceId"] = EntityIdCompat.GetIdString(_testMaterial) }
             };
 
             var result = Tools_Component.SetProperty(args);
@@ -177,7 +177,7 @@ namespace UnityMcp.Tests {
             // Material is in the array
             var material = props["m_Materials.Array.data[0]"];
             Assert.IsNotNull(material);
-            Assert.AreEqual(EntityIdCompat.GetId(_testMaterial), material["instanceId"].Value<long>());
+            Assert.AreEqual(EntityIdCompat.GetIdString(_testMaterial), material["instanceId"].Value<string>());
         }
     }
 }

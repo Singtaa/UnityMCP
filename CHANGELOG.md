@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Compile errors on Unity 6.5, where the `InstanceID` APIs (`GetInstanceID`, `EditorUtility.InstanceIDToObject`) become hard errors in favor of 64-bit `EntityId`. All usage now goes through `EntityIdCompat`, which uses `EntityId` on 6000.4+ and falls back to `InstanceID` on older versions (down to 2022.3). `FindCompat` similarly wraps the deprecated `FindObjectsByType(FindObjectsSortMode)` overloads. Object ids still cross the MCP wire as JSON numbers, but are now `long`; on Unity 6.4+ they are `EntityId` values that can exceed the 32-bit range and remain session-scoped as before.
+- Compile errors on Unity 6.5, where the `InstanceID` APIs (`GetInstanceID`, `EditorUtility.InstanceIDToObject`) become hard errors in favor of 64-bit `EntityId`. All usage now goes through `EntityIdCompat`, which uses `EntityId` on 6000.4+ and falls back to `InstanceID` on older versions (down to 2022.3). `FindCompat` similarly wraps the deprecated `FindObjectsByType(FindObjectsSortMode)` overloads. **Object ids now cross the MCP wire as JSON strings**: `EntityId` values exceed JavaScript's 2^53 safe-integer range, so raw JSON numbers get silently corrupted by the Node relay (verified live on 6000.5: `unity_component_set_enabled` by id failed until the switch to strings). Inputs accept both string and number; ids remain session-scoped as before.
 
 ### Changed
 

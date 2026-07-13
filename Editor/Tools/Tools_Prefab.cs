@@ -34,12 +34,12 @@ namespace UnityMcp {
             var compList = new List<object>();
             foreach (var c in comps) {
                 if (c == null) {
-                    compList.Add(new { type = "(Missing Script)", instanceId = 0, enabled = (bool?)null });
+                    compList.Add(new { type = "(Missing Script)", instanceId = "0", enabled = (bool?)null });
                     continue;
                 }
                 compList.Add(new {
                     type = c.GetType().FullName,
-                    instanceId = EntityIdCompat.GetId(c),
+                    instanceId = EntityIdCompat.GetIdString(c),
                     enabled = (c is Behaviour b) ? b.enabled : (bool?)null
                 });
             }
@@ -51,14 +51,14 @@ namespace UnityMcp {
                 var child = prefab.transform.GetChild(i);
                 children.Add(new {
                     name = child.name,
-                    instanceId = EntityIdCompat.GetId(child.gameObject)
+                    instanceId = EntityIdCompat.GetIdString(child.gameObject)
                 });
             }
 
             var result = new {
                 path = path,
                 name = prefab.name,
-                instanceId = EntityIdCompat.GetId(prefab),
+                instanceId = EntityIdCompat.GetIdString(prefab),
                 components = compList,
                 childCount = childCount,
                 children = children,
@@ -75,7 +75,7 @@ namespace UnityMcp {
         /// </summary>
         public static ToolResult Save(JObject args) {
             var path = args.Value<string>("path");
-            var instanceId = args.Value<long?>("instanceId");
+            var instanceId = EntityIdCompat.ParseId(args["instanceId"]);
 
             GameObject prefabRoot = null;
 
@@ -121,7 +121,7 @@ namespace UnityMcp {
                 return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
                     message = "Prefab saved successfully.",
                     path = path,
-                    instanceId = EntityIdCompat.GetId(prefabRoot)
+                    instanceId = EntityIdCompat.GetIdString(prefabRoot)
                 }));
             } catch (Exception e) {
                 return ToolResultUtil.Text($"Failed to save prefab: {e.Message}", true);
@@ -134,7 +134,7 @@ namespace UnityMcp {
         /// </summary>
         public static ToolResult GetHierarchy(JObject args) {
             var path = args.Value<string>("path");
-            var instanceId = args.Value<long?>("instanceId");
+            var instanceId = EntityIdCompat.ParseId(args["instanceId"]);
             var maxDepth = args.Value<int?>("maxDepth") ?? 10;
 
             GameObject prefabRoot = null;
@@ -171,7 +171,7 @@ namespace UnityMcp {
             var comps = t.GetComponents<Component>();
             var compList = comps.Where(c => c != null).Select(c => new {
                 type = c.GetType().Name,
-                instanceId = EntityIdCompat.GetId(c)
+                instanceId = EntityIdCompat.GetIdString(c)
             }).ToList();
 
             var children = new List<object>();
@@ -183,7 +183,7 @@ namespace UnityMcp {
 
             return new {
                 name = t.name,
-                instanceId = EntityIdCompat.GetId(t.gameObject),
+                instanceId = EntityIdCompat.GetIdString(t.gameObject),
                 components = compList,
                 children = children
             };
@@ -245,7 +245,7 @@ namespace UnityMcp {
                 prefabPath = prefabPath,
                 childPath = childPath ?? "",
                 componentType = comp.GetType().FullName,
-                instanceId = EntityIdCompat.GetId(comp),
+                instanceId = EntityIdCompat.GetIdString(comp),
                 properties = props
             }, Formatting.Indented));
         }
@@ -288,7 +288,7 @@ namespace UnityMcp {
                 case SerializedPropertyType.Color: return new[] { prop.colorValue.r, prop.colorValue.g, prop.colorValue.b, prop.colorValue.a };
                 case SerializedPropertyType.ObjectReference:
                     return prop.objectReferenceValue != null
-                        ? new { instanceId = EntityIdCompat.GetId(prop.objectReferenceValue), name = prop.objectReferenceValue.name }
+                        ? new { instanceId = EntityIdCompat.GetIdString(prop.objectReferenceValue), name = prop.objectReferenceValue.name }
                         : null;
                 default: return $"({prop.propertyType})";
             }
