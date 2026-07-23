@@ -82,7 +82,7 @@ namespace UnityMcp {
                     McpTcpClient.OnServerUnreachable -= OnServerUnreachable;
                     McpTcpClient.OnServerUnreachable += OnServerUnreachable;
 
-                    _client = new McpTcpClient(McpSettings.Host, McpSettings.IpcPort);
+                    _client = new McpTcpClient(McpSettings.Host, McpSettings.EffectiveIpcPort);
                     _client.Start();
                 }
             }
@@ -132,7 +132,7 @@ namespace UnityMcp {
             lock (_startLock) {
                 try { _client?.Dispose(); } catch { }
                 McpTcpClient.CleanupStaleLockFiles();
-                _client = new McpTcpClient(McpSettings.Host, McpSettings.IpcPort);
+                _client = new McpTcpClient(McpSettings.Host, McpSettings.EffectiveIpcPort);
                 _client.Start();
             }
         }

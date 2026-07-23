@@ -34,6 +34,10 @@ const config = {
     ipcHost: "127.0.0.1",
     ipcPort: parseIntSafe(process.env.MCP_IPC_PORT, 52100),
 
+    // Project identity (multi-editor support). Set by the launching Unity Editor;
+    // empty when the server is started manually.
+    projectRoot: (process.env.MCP_PROJECT_ROOT || "").trim(),
+
     // Auth
     authEnabled: requireAuth,
     authToken: getAuthToken(requireAuth),

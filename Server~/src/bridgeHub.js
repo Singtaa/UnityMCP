@@ -21,15 +21,31 @@
  *
  * The Unity side (McpBridgeBootstrap.cs) also filters out AssetImportWorker processes
  * to prevent them from connecting in the first place.
+ *
+ * MULTI-EDITOR SUPPORT (project identity):
+ * - The hub knows which project it serves (projectRoot, from MCP_PROJECT_ROOT env)
+ * - "bridge.identify" probes are answered directly by the hub (no Unity round-trip),
+ *   so an Editor can ask "whose server is on this port?" before adopting it
+ * - Hellos carrying a DIFFERENT projectRoot are rejected with "bridge.reject" instead
+ *   of replacing the bridge, so one Editor can never hijack another project's server
  */
 
 const net = require("net")
 const crypto = require("crypto")
 
+function normalizeRoot(p) {
+    if (!p) return ""
+    const s = String(p).replace(/\\/g, "/").replace(/\/+$/, "")
+    // Windows and macOS filesystems are case-insensitive by default
+    return process.platform === "linux" ? s : s.toLowerCase()
+}
+
 class BridgeHub {
-    constructor({ host, port, timeoutMs }) {
+    constructor({ host, port, timeoutMs, projectRoot, httpPort }) {
         this._host = host
         this._port = port
+        this._projectRoot = projectRoot || ""
+        this._httpPort = Number(httpPort) || 0
 
         const t = Number(timeoutMs)
         this._timeoutMs = Number.isFinite(t) && t > 0 ? t : 8000
@@ -123,7 +139,31 @@ class BridgeHub {
                     continue
                 }
 
+                if (msg.t === "bridge.identify") {
+                    // Identity probe: answer directly and close. Lets Unity Editors discover
+                    // which project this server belongs to before connecting/adopting it.
+                    const identity = {
+                        t: "bridge.identity",
+                        projectRoot: this._projectRoot,
+                        httpPort: this._httpPort,
+                        ipcPort: this._port,
+                        pid: process.pid,
+                    }
+                    try { thisSock.end(JSON.stringify(identity) + "\n") } catch { try { thisSock.destroy() } catch { } }
+                    return
+                }
+
                 if (msg.t === "bridge.hello") {
+                    // Project identity check: never let an Editor from a different project
+                    // take over this server's bridge (happens when ports are misconfigured).
+                    if (this._projectRoot && msg.projectRoot &&
+                        normalizeRoot(msg.projectRoot) !== normalizeRoot(this._projectRoot)) {
+                        console.log(`[bridge] rejecting hello from different project: ${msg.projectRoot} (this server: ${this._projectRoot})`)
+                        const reject = { t: "bridge.reject", reason: "project-mismatch", serverProjectRoot: this._projectRoot }
+                        try { thisSock.end(JSON.stringify(reject) + "\n") } catch { try { thisSock.destroy() } catch { } }
+                        return
+                    }
+
                     const newHelloUtc = msg.timeUtc ? new Date(msg.timeUtc).getTime() : Date.now()
                     const currentHelloUtc = this._lastHelloUtc || 0
 

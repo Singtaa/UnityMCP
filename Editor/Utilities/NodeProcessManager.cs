@@ -2,7 +2,9 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -13,8 +15,15 @@ namespace UnityMcp {
     /// Handles automatic startup, npm install, and graceful shutdown.
     ///
     /// DOMAIN RELOAD HANDLING:
-    /// We persist the server PID to EditorPrefs so we can reattach to it after domain reload.
-    /// This allows Unity to maintain control of the server process across reloads.
+    /// We persist the server PID to SessionState so we can reattach to it after domain reload.
+    /// SessionState is scoped to this Editor instance (unlike EditorPrefs, which is shared
+    /// machine-wide), so multiple open Editors never reattach to each other's servers.
+    ///
+    /// MULTI-EDITOR SUPPORT:
+    /// Each project runs its own Node server on its own port pair. When the configured IPC
+    /// port is already owned by a different project's server (or an unrelated process), we
+    /// probe its identity via "bridge.identify" and auto-allocate a free port pair for this
+    /// project, persisted to ProjectSettings/McpSettings.json.
     /// </summary>
     public static class NodeProcessManager {
         static Process _serverProcess;
@@ -41,7 +50,7 @@ namespace UnityMcp {
         public static bool TryReattachToProcess() {
             if (_serverProcess != null) return true;  // Already have a process
 
-            var savedPid = EditorPrefs.GetInt(PidPrefKey, -1);
+            var savedPid = SessionState.GetInt(PidPrefKey, -1);
             if (savedPid <= 0) return false;
 
             try {
@@ -92,11 +101,11 @@ namespace UnityMcp {
         }
 
         static void SavePid(int pid) {
-            EditorPrefs.SetInt(PidPrefKey, pid);
+            SessionState.SetInt(PidPrefKey, pid);
         }
 
         static void ClearSavedPid() {
-            EditorPrefs.DeleteKey(PidPrefKey);
+            SessionState.EraseInt(PidPrefKey);
         }
 
         /// <summary>
@@ -105,7 +114,7 @@ namespace UnityMcp {
         /// </summary>
         public static async Task<bool> CheckServerReachable() {
             // Check IPC port (TCP bridge) - this is what Unity actually connects to
-            var ipcReachable = await IsPortInUse(McpSettings.IpcPort);
+            var ipcReachable = await IsPortInUse(McpSettings.EffectiveIpcPort);
             if (ipcReachable && !IsRunning) {
                 _externalServerDetected = true;
                 OnServerStarted?.Invoke();
@@ -124,7 +133,7 @@ namespace UnityMcp {
         public static async Task<bool> HealthCheck() {
             // If we think an external server is running, verify it
             if (_externalServerDetected && _serverProcess == null) {
-                var stillReachable = await IsPortInUse(McpSettings.IpcPort);
+                var stillReachable = await IsPortInUse(McpSettings.EffectiveIpcPort);
                 if (!stillReachable) {
                     if (McpSettings.VerboseLogging) Debug.Log("[UnityMcp] Health check: external server died, clearing flag");
                     _externalServerDetected = false;
@@ -179,13 +188,44 @@ namespace UnityMcp {
                     Debug.Log("[UnityMcp] Dependencies installed successfully");
                 }
 
-                // 5. Check if server already running (survived domain reload or another Unity instance)
-                // We check the IPC port since that's what Unity connects to
-                if (await IsPortInUse(McpSettings.IpcPort)) {
-                    if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Server already running (IPC port {McpSettings.IpcPort} in use)");
-                    _externalServerDetected = true;
-                    OnServerStarted?.Invoke();
-                    return true;
+                // 5. If the IPC port already has a listener, find out who owns it before adopting it.
+                //    Same project (server survived domain reload, or started manually) -> adopt as external.
+                //    Another project's server or an unrelated process -> allocate a free port pair for
+                //    this project so multiple Editors can run side by side.
+                var probe = await ProbeServer(McpSettings.EffectiveIpcPort);
+                if (probe.Listening && !probe.Responded) {
+                    // A server mid-startup or mid-shutdown can accept connections without answering
+                    // identify yet; give it one more chance before treating it as foreign.
+                    await Task.Delay(750);
+                    probe = await ProbeServer(McpSettings.EffectiveIpcPort);
+                }
+                if (probe.Listening) {
+                    if (IsOwnServer(probe)) {
+                        if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Server already running for this project (IPC port {McpSettings.EffectiveIpcPort} in use)");
+                        _externalServerDetected = true;
+                        OnServerStarted?.Invoke();
+                        return true;
+                    }
+
+                    // No identify response: possibly a legacy (pre-multi-editor) server started
+                    // before a package update. Stop it so this project keeps its configured ports
+                    // instead of drifting to an allocated pair and orphaning the old process.
+                    if (!probe.Responded && TryKillLegacyServer()) {
+                        await Task.Delay(250);
+                        probe = await ProbeServer(McpSettings.EffectiveIpcPort);
+                    }
+                }
+                if (probe.Listening) {
+                    var occupant = probe.Responded && !string.IsNullOrEmpty(probe.ProjectRoot)
+                        ? $"the MCP server for '{probe.ProjectRoot}'"
+                        : "another process";
+                    if (!TryAllocatePortPair(out var httpPort, out var ipcPort)) {
+                        Debug.LogError($"[UnityMcp] IPC port {McpSettings.EffectiveIpcPort} is in use by {occupant} and no free port pair was found nearby. Set different ports in Window > Unity MCP Server.");
+                        return false;
+                    }
+
+                    Debug.Log($"[UnityMcp] Port {McpSettings.EffectiveIpcPort} is in use by {occupant}. This project now uses HTTP port {httpPort} / IPC port {ipcPort} (stored per-machine in UserSettings/McpPortOverride.json).");
+                    McpSettings.SetPortOverride(httpPort, ipcPort);
                 }
 
                 // 6. Start new server
@@ -419,7 +459,141 @@ namespace UnityMcp {
             }
         }
 
-        static async Task<bool> StartServerAsync() {
+        // MARK: Multi-Editor Support
+        class ServerProbeResult {
+            public bool Listening;       // Something accepted the TCP connection
+            public bool Responded;       // It answered the bridge.identify handshake (it's a UnityMcp hub)
+            public string ProjectRoot = "";
+        }
+
+        /// <summary>
+        /// Connect to an IPC port and ask the server which project it serves ("bridge.identify").
+        /// Answered directly by the Node bridge hub without a Unity round-trip, so a live
+        /// server always responds quickly. No response = not a (current-version) UnityMcp server.
+        /// </summary>
+        static async Task<ServerProbeResult> ProbeServer(int port) {
+            var result = new ServerProbeResult();
+            System.Net.Sockets.TcpClient client = null;
+            try {
+                client = new System.Net.Sockets.TcpClient();
+                var connectTask = client.ConnectAsync("127.0.0.1", port);
+                var completed = await Task.WhenAny(connectTask, Task.Delay(1000));
+                if (completed != connectTask || !client.Connected) return result;
+                result.Listening = true;
+
+                var stream = client.GetStream();
+                var request = Encoding.UTF8.GetBytes("{\"t\":\"bridge.identify\"}\n");
+                await stream.WriteAsync(request, 0, request.Length);
+
+                var buffer = new byte[8192];
+                var lineBytes = new MemoryStream();
+                var deadline = Task.Delay(1500);
+                var gotLine = false;
+                while (!gotLine) {
+                    var readTask = stream.ReadAsync(buffer, 0, buffer.Length);
+                    var done = await Task.WhenAny(readTask, deadline);
+                    if (done != readTask) return result; // Timeout: pre-identify server or foreign protocol
+                    var n = readTask.Result;
+                    if (n <= 0) break;
+                    for (int i = 0; i < n && !gotLine; i++) {
+                        if (buffer[i] == (byte)'\n') gotLine = true;
+                        else lineBytes.WriteByte(buffer[i]);
+                    }
+                    if (lineBytes.Length > 64 * 1024) break;
+                }
+                if (!gotLine) return result;
+
+                var obj = JObject.Parse(Encoding.UTF8.GetString(lineBytes.ToArray()));
+                if (obj.Value<string>("t") == "bridge.identity") {
+                    result.Responded = true;
+                    result.ProjectRoot = obj.Value<string>("projectRoot") ?? "";
+                }
+                return result;
+            } catch {
+                return result;
+            } finally {
+                try { client?.Close(); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// One-time migration: pre-multi-editor package versions stored the server PID in
+        /// machine-wide EditorPrefs and ran a server that predates the identify handshake.
+        /// Consults (and clears) that legacy entry; kills the process if it's still a live
+        /// Node server. Returns true if a process was killed.
+        /// </summary>
+        static bool TryKillLegacyServer() {
+            var legacyPid = EditorPrefs.GetInt(PidPrefKey, -1);
+            if (legacyPid <= 0) return false;
+            EditorPrefs.DeleteKey(PidPrefKey);
+            try {
+                var process = Process.GetProcessById(legacyPid);
+                if (process.HasExited || !process.ProcessName.ToLowerInvariant().Contains("node")) return false;
+                Debug.Log($"[UnityMcp] Stopping legacy MCP server (PID {legacyPid}) left over from a pre-update session.");
+                process.Kill();
+                process.WaitForExit(2000);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// A probed server counts as ours when it identifies with this project's root, or when
+        /// it responds without a root (manually started server with MCP_PROJECT_ROOT unset).
+        /// </summary>
+        static bool IsOwnServer(ServerProbeResult probe) {
+            if (!probe.Responded) return false;
+            return string.IsNullOrEmpty(probe.ProjectRoot) || PathsEqual(probe.ProjectRoot, ProjectPaths.ProjectRoot);
+        }
+
+        static bool PathsEqual(string a, string b) {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+            static string Norm(string p) => p.Replace('\\', '/').TrimEnd('/');
+            var comparison = Application.platform == RuntimePlatform.LinuxEditor
+                ? StringComparison.Ordinal
+                : StringComparison.OrdinalIgnoreCase; // Windows and macOS are case-insensitive by default
+            return string.Equals(Norm(a), Norm(b), comparison);
+        }
+
+        static bool IsPortFree(int port) {
+            try {
+                var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+                // Guard against SO_REUSEADDR false-frees (a port can test-bind as free on
+                // macOS/Linux while another socket holds it). Best-effort: not every
+                // platform/runtime supports the option.
+                try { listener.ExclusiveAddressUse = true; } catch { }
+                listener.Start();
+                listener.Stop();
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Find a free HTTP/IPC port pair near the configured base ports (same offset for both,
+        /// so a project's ports stay recognizable, e.g. 5174/52101).
+        /// </summary>
+        static bool TryAllocatePortPair(out int httpPort, out int ipcPort) {
+            var httpBase = McpSettings.HttpPort;
+            var ipcBase = McpSettings.IpcPort;
+            for (int offset = 1; offset <= 50; offset++) {
+                var h = httpBase + offset;
+                var i = ipcBase + offset;
+                if (h > 65535 || i > 65535) break;
+                if (IsPortFree(h) && IsPortFree(i)) {
+                    httpPort = h;
+                    ipcPort = i;
+                    return true;
+                }
+            }
+            httpPort = 0;
+            ipcPort = 0;
+            return false;
+        }
+
+        static async Task<bool> StartServerAsync(bool isRetry = false) {
             try {
                 var psi = new ProcessStartInfo {
                     FileName = GetNodeExecutable(),
@@ -435,10 +609,11 @@ namespace UnityMcp {
                 EnsureNodeInPath(psi);
 
                 // Set environment variables
-                psi.Environment["MCP_HTTP_PORT"] = McpSettings.HttpPort.ToString();
-                psi.Environment["MCP_IPC_PORT"] = McpSettings.IpcPort.ToString();
+                psi.Environment["MCP_HTTP_PORT"] = McpSettings.EffectiveHttpPort.ToString();
+                psi.Environment["MCP_IPC_PORT"] = McpSettings.EffectiveIpcPort.ToString();
                 psi.Environment["MCP_REQUIRE_AUTH"] = McpSettings.AuthEnabled ? "true" : "false";
                 psi.Environment["MCP_TOKEN"] = McpSettings.AuthToken;
+                psi.Environment["MCP_PROJECT_ROOT"] = ProjectPaths.ProjectRoot;
 
                 _serverProcess = Process.Start(psi);
                 if (_serverProcess == null) {
@@ -519,9 +694,36 @@ namespace UnityMcp {
                 }
 
                 var success = await startupTcs.Task;
+
+                // EADDRINUSE fallback: a port we tried to bind was taken. Only adopt the occupant
+                // if it actually serves this project; otherwise move to a free port pair and retry
+                // once. (Catches races and non-MCP squatters, e.g. Vite on 5173.)
+                if (success && _externalServerDetected) {
+                    // Our own process is redundant once we adopt an external server. An IPC-only
+                    // EADDRINUSE leaves it half-alive (dead bridge, live HTTP), so kill any residue.
+                    if (_serverProcess != null) {
+                        try { if (!_serverProcess.HasExited) _serverProcess.Kill(); } catch { }
+                        try { _serverProcess.Dispose(); } catch { }
+                        _serverProcess = null;
+                        ClearSavedPid();
+                    }
+
+                    var probe = await ProbeServer(McpSettings.EffectiveIpcPort);
+                    if (!IsOwnServer(probe)) {
+                        _externalServerDetected = false;
+                        if (!isRetry && TryAllocatePortPair(out var httpPort, out var ipcPort)) {
+                            Debug.Log($"[UnityMcp] Configured ports are in use by another process. This project now uses HTTP port {httpPort} / IPC port {ipcPort} (stored per-machine in UserSettings/McpPortOverride.json).");
+                            McpSettings.SetPortOverride(httpPort, ipcPort);
+                            return await StartServerAsync(isRetry: true);
+                        }
+                        Debug.LogError($"[UnityMcp] Ports {McpSettings.EffectiveHttpPort}/{McpSettings.EffectiveIpcPort} are in use by another process and the server could not start. Set different ports in Window > Unity MCP Server.");
+                        return false;
+                    }
+                }
+
                 if (success) {
                     OnServerStarted?.Invoke();
-                    Debug.Log($"[UnityMcp] Server started on port {McpSettings.HttpPort}");
+                    Debug.Log($"[UnityMcp] Server started on port {McpSettings.EffectiveHttpPort}");
                 }
                 return success;
             } catch (Exception e) {

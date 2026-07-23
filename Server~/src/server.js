@@ -21,13 +21,18 @@ const {
     requestBodyLimitBytes,
     bridgeTimeoutMs,
     protocolVersion,
+    projectRoot,
 } = config
+
+const projectName = projectRoot ? require("path").basename(projectRoot) : ""
 
 // ---- Bridge (IPC) ----
 const bridge = new BridgeHub({
     host: ipcHost,
     port: ipcPort,
     timeoutMs: bridgeTimeoutMs,
+    projectRoot,
+    httpPort,
 })
 bridge.start()
 
@@ -138,7 +143,8 @@ function initializeResult(params) {
         },
         serverInfo: {
             name: "unity-mcp-server",
-            title: "Unity MCP Server",
+            // Include the project name so users running multiple Editors can tell servers apart
+            title: projectName ? `Unity MCP Server (${projectName})` : "Unity MCP Server",
             version: "1.0.0",
         },
         instructions: "Unity MCP Server provides tools and resources for interacting with Unity Editor. Use tools/list to see available tools and resources/list to see available resources.",
@@ -373,6 +379,7 @@ function start() {
     server.listen(httpPort, httpHost, () => {
         console.log(`[mcp] http listening on http://${httpHost}:${httpPort}/mcp`)
         console.log(`[mcp] ipc bridge on tcp://${ipcHost}:${ipcPort}`)
+        console.log(`[mcp] project = ${projectRoot || "(unset - started manually?)"}`)
         console.log(`[mcp] bridge timeout = ${bridgeTimeoutMs}ms`)
         if (authEnabled) {
             console.log(`[mcp] bearer auth ON, token = ${authToken}`)

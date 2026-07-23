@@ -24,8 +24,11 @@ namespace UnityMcp {
         static volatile int _globalVersion = 0;
 
         // Static lock file path - used to coordinate between clients across domain reloads
+        // WITHIN this project. Lives in the project's Temp/ folder (per-project, survives
+        // domain reloads, deleted by Unity on graceful quit) so multiple Unity Editors on
+        // the same machine never invalidate each other's clients.
         static readonly string LockFilePath = System.IO.Path.Combine(
-            System.IO.Path.GetTempPath(),
+            ProjectPaths.ProjectRoot, "Temp",
             "UnityMcp_ActiveClient.lock");
 
         /// <summary>
@@ -36,6 +39,13 @@ namespace UnityMcp {
                 if (System.IO.File.Exists(LockFilePath)) {
                     System.IO.File.Delete(LockFilePath);
                     if (McpSettings.VerboseLogging) Debug.Log("[UnityMcp] Cleaned up stale lock file");
+                }
+
+                // One-time migration: pre-multi-editor versions used a machine-global lock file.
+                // Safe to delete even if an old-version Editor owns it (it re-claims on miss).
+                var legacyPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "UnityMcp_ActiveClient.lock");
+                if (System.IO.File.Exists(legacyPath)) {
+                    System.IO.File.Delete(legacyPath);
                 }
             } catch (Exception e) {
                 if (McpSettings.VerboseLogging) Debug.LogWarning($"[UnityMcp] Failed to cleanup lock file: {e.Message}");
@@ -66,7 +76,9 @@ namespace UnityMcp {
         // Rate limiting for log messages
         DateTime _lastConnectLog = DateTime.MinValue;
         DateTime _lastDisconnectLog = DateTime.MinValue;
+        DateTime _lastRejectLog = DateTime.MinValue;
         const double LogRateLimitSeconds = 2.0;
+        const double RejectLogRateLimitSeconds = 60.0;
 
         // Track consecutive connection failures to detect dead server
         int _consecutiveFailures = 0;
@@ -105,6 +117,7 @@ namespace UnityMcp {
 
         void ClaimLockFile() {
             try {
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(LockFilePath));
                 System.IO.File.WriteAllText(LockFilePath, _clientId);
             } catch (Exception e) {
                 if (McpSettings.VerboseLogging) Debug.LogWarning($"[UnityMcp] Failed to claim lock file: {e.Message}");
@@ -389,6 +402,18 @@ namespace UnityMcp {
                 var root = JObject.Parse(line);
                 var t = root.Value<string>("t");
                 if (string.IsNullOrEmpty(t)) return;
+
+                if (t == "bridge.reject") {
+                    var reason = root.Value<string>("reason") ?? "unknown";
+                    var serverRoot = root.Value<string>("serverProjectRoot") ?? "";
+                    var now = DateTime.UtcNow;
+                    if ((now - _lastRejectLog).TotalSeconds >= RejectLogRateLimitSeconds) {
+                        _lastRejectLog = now;
+                        var detail = string.IsNullOrEmpty(serverRoot) ? "" : $" It serves: {serverRoot}.";
+                        Debug.LogWarning($"[UnityMcp] Server on port {_port} rejected this connection ({reason}).{detail} Set different HTTP/IPC ports for this project in Window > Unity MCP Server.");
+                    }
+                    return;
+                }
 
                 if (t == "call") {
                     Interlocked.Increment(ref _totalCalls);

@@ -12,6 +12,7 @@ namespace UnityMcp {
         Label _statusLabel;
         VisualElement _statusIndicator;
         Label _serverStatusLabel;
+        Label _endpointLabel;
         Label _bridgeStatusLabel;
         Label _clientIdLabel;
         Label _uptimeLabel;
@@ -83,8 +84,7 @@ namespace UnityMcp {
             // Server section
             scrollView.Add(CreateSection("Node Server", out var serverContent));
             serverContent.Add(CreateLabelRow("Status:", out _serverStatusLabel));
-            serverContent.Add(CreateLabelRow("Port:", out var portLabel));
-            portLabel.text = McpSettings.HttpPort.ToString();
+            serverContent.Add(CreateLabelRow("Endpoint:", out _endpointLabel));
 
             var serverButtons = new VisualElement {
                 style = {
@@ -246,6 +246,13 @@ namespace UnityMcp {
             } else {
                 _serverStatusLabel.text = NodeProcessManager.IsStarting ? "Starting..." : "Stopped";
             }
+
+            // Endpoint reflects the effective ports (auto-allocated in multi-editor setups)
+            _endpointLabel.text = McpSettings.HasPortOverride
+                ? $"http://127.0.0.1:{McpSettings.EffectiveHttpPort}/mcp (auto-allocated; preferred {McpSettings.HttpPort} in use)"
+                : $"http://127.0.0.1:{McpSettings.EffectiveHttpPort}/mcp";
+            if (_httpPortField.value != McpSettings.HttpPort) _httpPortField.SetValueWithoutNotify(McpSettings.HttpPort);
+            if (_ipcPortField.value != McpSettings.IpcPort) _ipcPortField.SetValueWithoutNotify(McpSettings.IpcPort);
 
             // Bridge status
             _bridgeStatusLabel.text = bridgeConnected ? "Connected" : "Disconnected";

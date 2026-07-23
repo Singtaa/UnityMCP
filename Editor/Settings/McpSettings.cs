@@ -39,6 +39,7 @@ namespace UnityMcp {
             set {
                 if (Instance.httpPort != value) {
                     Instance.httpPort = value;
+                    ClearPortOverride(); // manual choice supersedes any auto-allocation
                     Save();
                 }
             }
@@ -49,8 +50,81 @@ namespace UnityMcp {
             set {
                 if (Instance.ipcPort != value) {
                     Instance.ipcPort = value;
+                    ClearPortOverride(); // manual choice supersedes any auto-allocation
                     Save();
                 }
+            }
+        }
+
+        // MARK: Machine-Local Port Overrides
+        // Auto-allocated ports live in UserSettings (gitignored, per-machine), NOT in the
+        // team-shared ProjectSettings file: persisting an allocation there would commit one
+        // machine's port shuffle to the whole team and make ports drift over time via VCS.
+        // The ProjectSettings ports are the team-preferred defaults; the override wins locally
+        // until the preferred ports change or the user picks ports manually.
+        [Serializable]
+        class PortOverride {
+            public int httpPort;
+            public int ipcPort;
+            public int basedOnHttpPort; // preferred ports the allocation was based on;
+            public int basedOnIpcPort;  // the override is discarded when these change
+        }
+
+        static readonly string PortOverridePath = "UserSettings/McpPortOverride.json";
+        static PortOverride _portOverride;
+        static bool _portOverrideLoaded;
+
+        static PortOverride GetPortOverride() {
+            if (_portOverrideLoaded) return _portOverride;
+            _portOverrideLoaded = true;
+
+            try {
+                if (File.Exists(PortOverridePath)) {
+                    _portOverride = JsonUtility.FromJson<PortOverride>(File.ReadAllText(PortOverridePath));
+                }
+            } catch (Exception e) {
+                Debug.LogWarning($"[McpSettings] Failed to load port override: {e.Message}");
+            }
+
+            // Discard when the team-preferred ports changed since the allocation was made
+            if (_portOverride != null &&
+                (_portOverride.basedOnHttpPort != Instance.httpPort || _portOverride.basedOnIpcPort != Instance.ipcPort)) {
+                ClearPortOverride();
+            }
+            return _portOverride;
+        }
+
+        /// <summary>HTTP port actually in use: the machine-local override if present, else the configured port.</summary>
+        public static int EffectiveHttpPort => GetPortOverride()?.httpPort ?? Instance.httpPort;
+
+        /// <summary>IPC port actually in use: the machine-local override if present, else the configured port.</summary>
+        public static int EffectiveIpcPort => GetPortOverride()?.ipcPort ?? Instance.ipcPort;
+
+        public static bool HasPortOverride => GetPortOverride() != null;
+
+        public static void SetPortOverride(int httpPort, int ipcPort) {
+            _portOverride = new PortOverride {
+                httpPort = httpPort,
+                ipcPort = ipcPort,
+                basedOnHttpPort = Instance.httpPort,
+                basedOnIpcPort = Instance.ipcPort,
+            };
+            _portOverrideLoaded = true;
+            try {
+                Directory.CreateDirectory(Path.GetDirectoryName(PortOverridePath));
+                File.WriteAllText(PortOverridePath, JsonUtility.ToJson(_portOverride, true));
+            } catch (Exception e) {
+                Debug.LogWarning($"[McpSettings] Failed to save port override: {e.Message}");
+            }
+        }
+
+        public static void ClearPortOverride() {
+            _portOverride = null;
+            _portOverrideLoaded = true;
+            try {
+                if (File.Exists(PortOverridePath)) File.Delete(PortOverridePath);
+            } catch (Exception e) {
+                Debug.LogWarning($"[McpSettings] Failed to delete port override: {e.Message}");
             }
         }
 

@@ -57,6 +57,20 @@ Settings are stored in `ProjectSettings/McpSettings.json`:
 | Auto Start | true | Start server on Unity launch |
 | Auth Enabled | true | Require bearer token authentication |
 
+The `McpSettings.json` ports are the team-preferred defaults (the file is meant to be committed). If they're taken when the server starts (typically by another Unity project's MCP server), a free port pair is allocated automatically and stored per-machine in `UserSettings/McpPortOverride.json` (gitignored), so one machine's port shuffle never gets committed to the team. Changing ports manually in the MCP Server window updates the shared settings and clears the local override. The window always shows the project's current endpoint URL.
+
+## Multiple Unity Editors
+
+Each open project runs its own server on its own port pair, so multiple Editors can be used side by side, each with its own MCP endpoint:
+
+1. The first project gets the default ports (HTTP 5173 / IPC 52100)
+2. The next project detects the ports are taken, asks the running server which project it belongs to (`bridge.identify`), and auto-allocates the next free pair (e.g. 5174/52101)
+3. Allocated ports are persisted per-machine, so endpoints stay stable across sessions
+
+Point each AI assistant at the project's own endpoint (shown in Window > Unity MCP Server) with that project's own auth token. The server also validates project identity on every bridge connection, so an Editor can never take over a server belonging to a different project - even with misconfigured ports.
+
+If you start the Node server manually (`node src/server.js`), set `MCP_PROJECT_ROOT` to the project path so Editors can identify it; without it, the server accepts whichever project connects first.
+
 ## Available Tools
 
 ### Scene Management
