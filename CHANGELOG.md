@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`unity_capture_panel` blank image in edit mode.** In Unity 6's render-graph pipeline the panel's `RenderTreeManager` is created only by the repaint-phase updater (`UIRRepaintUpdater.Update`), which nothing invokes outside play mode - so `Panel.Render()` silently drew nothing. The capture path now runs the panel's repaint updater (idempotent, same call the play-mode frame loop makes) before rendering, making edit-mode captures work; play-mode behavior is unchanged.
+
 - **Cross-project interference with multiple Editors open.** Three machine-global mechanisms made "last Editor wins": the active-client lock file lived in the system temp directory (now `Temp/UnityMcp_ActiveClient.lock` inside the project, per-project by construction and cleaned up by Unity on quit); the server PID was stored in machine-wide `EditorPrefs`, letting one Editor reattach to - and kill on quit - another project's server (now `SessionState`, scoped to the Editor instance); and a server whose port was already in use was adopted as "external" without checking which project it served (now identity-checked via `bridge.identify`).
 - Leaked half-alive Node process when only the IPC port collided at startup (bridge hub logged `EADDRINUSE` but the HTTP server kept running). The residual process is now killed before adopting an external server or retrying.
 

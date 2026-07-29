@@ -40,6 +40,27 @@ namespace UnityMcp {
             return _panelSettingsPanelProp?.GetValue(ps);
         }
 
+        // In edit mode nothing runs the panel's repaint-phase updater (UIRRepaintUpdater),
+        // so its RenderTreeManager may not exist and Render() silently draws nothing -
+        // that was the blank-capture bug. The updater's Update() is idempotent: it creates
+        // the render tree on first use and processes pending changes, exactly what the
+        // play-mode frame loop does every frame, so calling it here is safe in both modes.
+        static void EnsurePanelRenderTree(object runtimePanel) {
+            if (runtimePanel == null) return;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            object renderer = null;
+            for (var t = runtimePanel.GetType(); t != null; t = t.BaseType) {
+                var f = t.GetField("panelRenderer", flags | BindingFlags.DeclaredOnly);
+                if (f != null) {
+                    renderer = f.GetValue(runtimePanel);
+                    break;
+                }
+            }
+            renderer?.GetType()
+                .GetMethod("Update", flags, null, Type.EmptyTypes, null)
+                ?.Invoke(renderer, null);
+        }
+
         public static ToolResult CapturePanel(JObject args) {
             var panelPath = args.Value<string>("panelPath");
             var width = args.Value<int?>("width") ?? 1920;
@@ -86,9 +107,11 @@ namespace UnityMcp {
                 // Update once so the panel notices the targetTexture change and re-registers as offscreen.
                 _updatePanels.Invoke(null, null);
 
+                var runtimePanel = GetRuntimePanel(panel);
+                EnsurePanelRenderTree(runtimePanel);
+
                 // Prefer direct RenderPanel(panel, restoreState=true) when accessible — it bypasses the offscreen-list
                 // filtering that can skip freshly-reassigned panels on the first frame.
-                var runtimePanel = GetRuntimePanel(panel);
                 if (runtimePanel != null && _renderPanel != null) {
                     _renderPanel.Invoke(null, new[] { runtimePanel, (object)true });
                 } else {
