@@ -66,6 +66,7 @@ namespace UnityMcp {
                 // Assets
                 ["unity.assets.refresh"] = AssetsRefresh,
                 ["unity.assets.import"] = AssetsImport,
+                ["unity.assets.find"] = AssetsFind,
 
                 // Scene
                 ["unity.scene.list"] = Tools_Scene.List,
@@ -467,6 +468,70 @@ namespace UnityMcp {
                 successCount = successCount,
                 failCount = failCount,
                 results = results
+            };
+
+            return ToolResultUtil.Text(JsonConvert.SerializeObject(response, Formatting.Indented));
+        }
+
+        static ToolResult AssetsFind(JObject args) {
+            var query = GetString(args, "query");
+            if (string.IsNullOrEmpty(query))
+                return ToolResultUtil.Text("Missing param: query", true);
+
+            string[] folders = null;
+            var foldersToken = args?["folders"];
+            if (foldersToken != null && foldersToken.Type == JTokenType.Array) {
+                var list = new List<string>();
+                foreach (var tok in foldersToken) {
+                    var f = tok?.ToString();
+                    if (string.IsNullOrEmpty(f)) continue;
+                    list.Add(f.Replace("\\", "/").TrimEnd('/'));
+                }
+                if (list.Count > 0) folders = list.ToArray();
+            }
+
+            if (folders != null) {
+                // FindAssets logs errors for unknown roots instead of failing the call;
+                // reject up front so a typo'd folder can't read as "no matches"
+                var invalid = new List<string>();
+                foreach (var f in folders)
+                    if (!AssetDatabase.IsValidFolder(f)) invalid.Add(f);
+                if (invalid.Count > 0)
+                    return ToolResultUtil.Text(
+                        $"Invalid folder(s): {string.Join(", ", invalid)}", true);
+            }
+
+            var limit = args?.Value<int?>("limit") ?? 200;
+            limit = Mathf.Clamp(limit, 1, 1000);
+
+            string[] guids;
+            try {
+                guids = folders == null
+                    ? AssetDatabase.FindAssets(query)
+                    : AssetDatabase.FindAssets(query, folders);
+            } catch (Exception e) {
+                return ToolResultUtil.Text($"FindAssets failed: {e.Message}", true);
+            }
+
+            var results = new List<object>();
+            foreach (var guid in guids) {
+                if (results.Count >= limit) break;
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (string.IsNullOrEmpty(path)) continue;
+                var type = AssetDatabase.GetMainAssetTypeAtPath(path);
+                results.Add(new {
+                    path,
+                    guid,
+                    type = type != null ? type.FullName : null,
+                    name = System.IO.Path.GetFileNameWithoutExtension(path)
+                });
+            }
+
+            var response = new {
+                totalCount = guids.Length,
+                returnedCount = results.Count,
+                truncated = guids.Length > results.Count,
+                results
             };
 
             return ToolResultUtil.Text(JsonConvert.SerializeObject(response, Formatting.Indented));

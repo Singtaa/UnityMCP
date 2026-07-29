@@ -7,7 +7,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Un
 
 ## Features
 
-- **72 Tools** for manipulating scenes, GameObjects, components, prefabs, transforms, reflection, C# eval, capture, and more
+- **73 Tools** for manipulating scenes, GameObjects, components, prefabs, transforms, reflection, C# eval, capture, and more
 - **MCP Resources** for live access to console logs, scene hierarchy, test results, and project files
 - **Auto-start Node.js server** - no manual setup required
 - **Editor Window** for monitoring and configuration
@@ -140,6 +140,7 @@ If you start the Node server manually (`node src/server.js`), set `MCP_PROJECT_R
 - `unity_project_write_text` - Write text files
 - `unity_assets_refresh` - Refresh AssetDatabase
 - `unity_assets_import` - Import specific assets
+- `unity_assets_find` - Type-aware asset search (`AssetDatabase.FindAssets`): `t:Material`, `t:Prefab ui`, `l:MyLabel`, optional folder scoping, capped results with total count
 
 ### Reflection & Decompilation
 - `unity_reflection_search_types` - Search for types by name pattern across all assemblies

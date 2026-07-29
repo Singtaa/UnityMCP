@@ -145,6 +145,34 @@ const _defs = [
             additionalProperties: false,
         },
     },
+    {
+        safeName: "unity_assets_find",
+        bridgeName: "unity.assets.find",
+        description: "Search assets with AssetDatabase.FindAssets using Project-window search syntax: 't:Material', 't:Prefab ui', 'l:MyLabel', name terms, or combinations. Type-aware, unlike the filesystem view of unity_project_list_files. Returns path, guid, main asset type and name per match; totalCount reports the full match count when results are capped by limit.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                query: {
+                    type: "string",
+                    description: "Search filter, e.g. 't:Material', 't:Prefab ui', 'l:MyLabel', 'Player t:Texture2D'"
+                },
+                folders: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "Optional folders to scope the search (e.g. ['Assets/UI', 'Packages/com.example.pkg'])"
+                },
+                limit: {
+                    type: "integer",
+                    default: 200,
+                    minimum: 1,
+                    maximum: 1000,
+                    description: "Max results to return"
+                },
+            },
+            required: ["query"],
+            additionalProperties: false,
+        },
+    },
 
     // MARK: Scene
     {

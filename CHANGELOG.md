@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`unity_assets_find` tool**: type-aware asset search wrapping `AssetDatabase.FindAssets` with Project-window query syntax (`t:Material`, `t:Prefab ui`, `l:MyLabel`), optional folder scoping (invalid folders are rejected up front instead of silently matching nothing), and a result cap (default 200) with the full match count reported.
+
 - **`unity_eval` tool**: compile and run a C# snippet in the Editor with no domain reload. Uses the Roslyn compiler bundled inside the editor installation (probed and validated at first use, loaded via reflection so the package never binds to a specific Roslyn version; no compiler DLLs are shipped). Expression snippets return their value; statement snippets use `return`. Leading `using` lines are hoisted and common Unity/System namespaces are imported by default, with `Object`/`Random` aliased to `UnityEngine`. Compile diagnostics come back structured (severity, id, line, column). First eval in a session takes a few seconds (one-time reference metadata warm-up); subsequent evals compile in tens of milliseconds. Language ceiling is the bundled compiler (C# 9 on current Unity). Each eval loads a small in-memory assembly that persists until the next domain reload.
 
 - **Multi-editor support**: multiple Unity Editors (different projects) can now run MCP servers side by side on the same machine, each with its own endpoint.
