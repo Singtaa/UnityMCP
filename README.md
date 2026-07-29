@@ -7,7 +7,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Un
 
 ## Features
 
-- **71 Tools** for manipulating scenes, GameObjects, components, prefabs, transforms, reflection, capture, and more
+- **72 Tools** for manipulating scenes, GameObjects, components, prefabs, transforms, reflection, C# eval, capture, and more
 - **MCP Resources** for live access to console logs, scene hierarchy, test results, and project files
 - **Auto-start Node.js server** - no manual setup required
 - **Editor Window** for monitoring and configuration
@@ -149,6 +149,9 @@ If you start the Node server manually (`node src/server.js`), set `MCP_PROJECT_R
 - `unity_reflection_get_assemblies` - List all loaded assemblies
 - `unity_reflection_decompile` - Decompile type/method to C# source code
 - `unity_reflection_invoke_static` - Invoke parameterless static methods/properties
+
+### Eval
+- `unity_eval` - Compile and run a C# snippet in the Editor (no domain reload). Expression snippets return their value (`Selection.activeGameObject.name`); statement snippets use `return`. Common Unity/System namespaces are imported by default and leading `using` lines are hoisted. Uses the Roslyn bundled with the editor (C# 9 ceiling); first call in a session takes a few seconds, subsequent compiles run in tens of milliseconds. Prefer dedicated tools when one exists - eval covers the long tail.
 
 ## MCP Resources
 

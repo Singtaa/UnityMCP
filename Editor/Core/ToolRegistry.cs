@@ -144,6 +144,9 @@ namespace UnityMcp {
                 ["unity.reflection.decompile"] = Tools_Reflection.Decompile,
                 ["unity.reflection.invokeStatic"] = Tools_Reflection.InvokeStatic,
                 ["unity.reflection.getPublicApi"] = Tools_Reflection.GetPublicApi,
+
+                // Eval
+                ["unity.eval"] = Tools_Eval.Eval,
             };
         }
 

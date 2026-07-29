@@ -657,7 +657,7 @@ namespace UnityMcp {
                 }
 
                 var isVoid = returnType == typeof(void);
-                var serializedResult = isVoid ? null : SerializeResult(result);
+                var serializedResult = isVoid ? null : ResultSerializer.Serialize(result);
 
                 return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
                     success = true,
@@ -826,56 +826,5 @@ namespace UnityMcp {
             return $"{typeName}({parameters})";
         }
 
-        static object SerializeResult(object result) {
-            if (result == null) return null;
-
-            var type = result.GetType();
-
-            // Primitives and strings serialize directly
-            if (type.IsPrimitive || type == typeof(string) || type == typeof(decimal))
-                return result;
-
-            // Enums as their string representation
-            if (type.IsEnum)
-                return result.ToString();
-
-            // Unity Objects - return basic info
-            if (result is UnityEngine.Object unityObj) {
-                return new {
-                    type = type.FullName,
-                    name = unityObj.name,
-                    instanceId = EntityIdCompat.GetIdString(unityObj)
-                };
-            }
-
-            // Arrays and collections
-            if (result is System.Collections.IEnumerable enumerable && !(result is string)) {
-                var items = new List<object>();
-                foreach (var item in enumerable) {
-                    items.Add(SerializeResult(item));
-                    if (items.Count >= 100) {
-                        items.Add("... (truncated)");
-                        break;
-                    }
-                }
-                return items;
-            }
-
-            // Try JSON serialization for complex objects
-            try {
-                return JsonConvert.DeserializeObject(
-                    JsonConvert.SerializeObject(result, new JsonSerializerSettings {
-                        ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                        MaxDepth = 3
-                    })
-                );
-            } catch {
-                // Fallback to string representation
-                return new {
-                    type = type.FullName,
-                    toString = result.ToString()
-                };
-            }
-        }
     }
 }

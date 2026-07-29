@@ -1051,6 +1051,24 @@ const _defs = [
             additionalProperties: false,
         },
     },
+
+    // MARK: Eval
+    {
+        safeName: "unity_eval",
+        bridgeName: "unity.eval",
+        description: "Compile and run a C# snippet in the Editor via the bundled Roslyn compiler - no domain reload, runs on the main thread with full editor privileges. Expression snippets ('2 + 2', 'Selection.activeGameObject.name') return their value directly; statement snippets need an explicit 'return' to produce a value. Leading 'using' lines are hoisted; System, System.Linq, System.Collections.Generic, UnityEngine and UnityEditor are imported by default (Object/Random resolve to UnityEngine). Language ceiling is the editor-bundled compiler (C# 9 on current Unity versions). First call in a session takes a few seconds (reference warm-up), subsequent calls compile in tens of milliseconds. Each eval loads a small in-memory assembly that persists until the next domain reload. Prefer dedicated tools when one exists; use this for one-off operations they don't cover.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                code: {
+                    type: "string",
+                    description: "C# snippet: an expression or a statement body (use 'return' for a value)"
+                }
+            },
+            required: ["code"],
+            additionalProperties: false,
+        },
+    },
 ]
 
 const tools = _defs.map((d) => ({
