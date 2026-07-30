@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-30
+
 ### Added
 
 - **"Set up Claude Code" button** in Window > Unity MCP Server: one click registers the stdio launcher with Claude Code at user scope (once per machine). Resolves the claude binary from known install locations (native installer, legacy local install, Homebrew, npm-under-nvm, with a login-shell lookup as last resort) and invokes it directly, since GUI-launched Unity doesn't inherit the user's shell PATH. Idempotent: re-running replaces the existing entry. The launcher also now fails fast with an instructive error when a session has no Unity project at all, instead of holding the client for the full retry window.
