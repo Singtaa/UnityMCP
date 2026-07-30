@@ -8,9 +8,10 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Un
 ## Features
 
 - **73 Tools** for manipulating scenes, GameObjects, components, prefabs, transforms, reflection, C# eval, capture, and more
+- **Zero-config Claude Code setup** - one click (or one command) per machine; every Unity project and editor then connects automatically, with no per-project ports or tokens
 - **MCP Resources** for live access to console logs, scene hierarchy, test results, and project files
 - **Auto-start Node.js server** - no manual setup required
-- **Editor Window** for monitoring and configuration
+- **Editor Window** for monitoring, configuration, and Claude Code setup
 - **Full test coverage** with unit and integration tests
 
 ## Requirements
@@ -184,8 +185,14 @@ If you start the Node server manually (`node src/server.js`), set `MCP_PROJECT_R
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      AI Assistant                           │
-├─────────────────────────────────────────────────────────────┤
-│                 HTTP JSON-RPC (Port 5173)                   │
+├──────────────────────────────┬──────────────────────────────┤
+│  stdio launcher              │  (or direct HTTP clients)    │
+│  ~/.unity-mcp/stdio.js       │                              │
+│  resolves the session's      │                              │
+│  project, reads its beacon   │                              │
+│  Temp/UnityMcp_Endpoint.json │                              │
+├──────────────────────────────┴──────────────────────────────┤
+│           HTTP JSON-RPC (Port 5173, per project)            │
 ├─────────────────────────────────────────────────────────────┤
 │              Node.js MCP Server (Server~/)                  │
 ├─────────────────────────────────────────────────────────────┤
@@ -198,6 +205,8 @@ If you start the Node server manually (`node src/server.js`), set `MCP_PROJECT_R
 └─────────────────────────────────────────────────────────────┘
 ```
 
+Each open project runs its own Node server; the launcher is the shared front door that routes every session to the right one.
+
 ## Development
 
 ### Running Tests
@@ -205,6 +214,8 @@ If you start the Node server manually (`node src/server.js`), set `MCP_PROJECT_R
 Open Window > General > Test Runner and run:
 - **EditMode** tests for unit and integration tests
 - **PlayMode** tests for runtime behavior
+
+The Node-side tests (stdio launcher project resolution, beacon parsing, retry classification) run with `npm test` inside `Server~/`.
 
 ### Building the Node Server
 
