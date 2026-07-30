@@ -111,6 +111,10 @@ async function forwardOnce(beacon, msg) {
 }
 
 async function forwardWithRetry(msg) {
+    // No project resolved means no beacon can ever appear - fail fast instead of
+    // holding the client for the whole retry window
+    if (!projectRoot) throw new Error(notRunningMessage())
+
     const deadline = Date.now() + RETRY_WINDOW_MS
     let lastError = notRunningMessage()
     for (;;) {

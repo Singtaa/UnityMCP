@@ -43,7 +43,9 @@ git submodule add https://github.com/Singtaa/UnityMCP.git Packages/com.singtaa.u
 
 1. Install the package
 2. Open the project once in Unity (the server starts automatically and deploys the stdio launcher to `~/.unity-mcp/stdio.js`)
-3. Register the launcher with Claude Code - **once per machine, not per project**:
+3. Open **Window > Unity MCP Server** and click **Set up Claude Code** - done. This registers the launcher with Claude Code once per machine (user scope), never per project.
+
+Prefer the terminal? The button runs the equivalent of:
 
 ```bash
 # macOS / Linux

@@ -742,7 +742,7 @@ namespace UnityMcp {
             // The TCP client will reconnect after reload
         }
 
-        static string GetNodeExecutable() {
+        internal static string GetNodeExecutable() {
             // On Windows, just use "node" and let PATH resolve it
             // On macOS/Linux, check common locations
             if (Application.platform == RuntimePlatform.WindowsEditor) {

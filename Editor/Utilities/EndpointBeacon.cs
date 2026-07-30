@@ -56,19 +56,20 @@ namespace UnityMcp {
         // Copies the launcher to a stable per-machine path. Content-compared so it
         // only writes when the packaged copy changed; written via a temp file +
         // rename so a launcher reading it mid-deploy never sees a torn file.
-        static void EnsureLauncherDeployed() {
+        // Returns the deployed launcher path, or null when deployment failed.
+        internal static string EnsureLauncherDeployed() {
             try {
                 var packagePath = NodeProcessManager.GetPackagePath();
-                if (string.IsNullOrEmpty(packagePath)) return;
+                if (string.IsNullOrEmpty(packagePath)) return null;
                 var src = Path.Combine(packagePath, "Server~", "src", "stdio.js");
-                if (!File.Exists(src)) return;
+                if (!File.Exists(src)) return null;
 
                 var destDir = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".unity-mcp");
                 var dest = Path.Combine(destDir, "stdio.js");
 
                 var srcText = File.ReadAllText(src);
-                if (File.Exists(dest) && File.ReadAllText(dest) == srcText) return;
+                if (File.Exists(dest) && File.ReadAllText(dest) == srcText) return dest;
 
                 Directory.CreateDirectory(destDir);
                 var tmp = dest + ".tmp";
@@ -79,8 +80,10 @@ namespace UnityMcp {
                     File.Move(tmp, dest);
                 }
                 Debug.Log($"[UnityMcp] Deployed stdio launcher to {dest}");
+                return dest;
             } catch (Exception e) {
                 Debug.LogWarning($"[UnityMcp] Failed deploying stdio launcher: {e.Message}");
+                return null;
             }
         }
     }

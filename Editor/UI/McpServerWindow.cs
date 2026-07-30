@@ -29,6 +29,8 @@ namespace UnityMcp {
         Toggle _verboseLoggingToggle;
         Foldout _toolsFoldout;
         Foldout _resourcesFoldout;
+        Label _claudeSetupLabel;
+        Button _claudeSetupButton;
 
         [MenuItem("Window/Unity MCP Server")]
         public static void ShowWindow() {
@@ -113,6 +115,22 @@ namespace UnityMcp {
             _reconnectButton = new Button(OnReconnect) { text = "Reconnect", style = { flexGrow = 1 } };
             bridgeButtons.Add(_reconnectButton);
             bridgeContent.Add(bridgeButtons);
+
+            // Claude Code section
+            scrollView.Add(CreateSection("Claude Code", out var claudeContent));
+            claudeContent.Add(new Label(
+                "One-time setup for this machine: registers the stdio launcher with Claude Code " +
+                "(user scope). Every Unity project then connects automatically - no ports or tokens.") {
+                style = { whiteSpace = WhiteSpace.Normal, marginBottom = 6 }
+            });
+            claudeContent.Add(CreateLabelRow("Status:", out _claudeSetupLabel));
+            _claudeSetupLabel.text = "not configured in this session";
+            var claudeButtons = new VisualElement {
+                style = { flexDirection = FlexDirection.Row, marginTop = 8 }
+            };
+            _claudeSetupButton = new Button(OnSetupClaudeCode) { text = "Set up Claude Code", style = { flexGrow = 1 } };
+            claudeButtons.Add(_claudeSetupButton);
+            claudeContent.Add(claudeButtons);
 
             // Tools foldout
             _toolsFoldout = new Foldout {
@@ -328,6 +346,19 @@ namespace UnityMcp {
 
         void OnCopyToken() {
             EditorGUIUtility.systemCopyBuffer = McpSettings.AuthToken;
+        }
+
+        async void OnSetupClaudeCode() {
+            _claudeSetupButton.SetEnabled(false);
+            _claudeSetupLabel.text = "running claude CLI...";
+            try {
+                var (ok, message) = await ClaudeCodeSetup.RunAsync();
+                _claudeSetupLabel.text = ok ? "configured (user scope, all projects)" : "failed - see Console";
+                if (ok) Debug.Log($"[UnityMcp] Claude Code setup: {message}");
+                else Debug.LogError($"[UnityMcp] Claude Code setup failed: {message}");
+            } finally {
+                _claudeSetupButton.SetEnabled(true);
+            }
         }
     }
 }
