@@ -252,6 +252,7 @@ namespace UnityMcp {
 
             ClearSavedPid();
             _externalServerDetected = false;
+            EndpointBeacon.Delete();
             OnServerStopped?.Invoke();
         }
 
@@ -345,7 +346,7 @@ namespace UnityMcp {
             }
         }
 
-        static string GetPackagePath() {
+        internal static string GetPackagePath() {
             // Use Unity's PackageInfo API to get the real physical path.
             // This correctly resolves git URL installs (Library/PackageCache/),
             // local installs (Packages/), and embedded packages.

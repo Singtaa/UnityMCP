@@ -313,6 +313,8 @@ namespace UnityMcp {
 
             Debug.Log($"[UnityMcp] Bridge connected");
             SendHello();
+            // Beacon + launcher deploy touch Unity APIs (settings, PackageInfo) - main thread only
+            MainThreadDispatcher.Enqueue(EndpointBeacon.OnBridgeConnected);
         }
 
         void CloseSocket() {
@@ -412,6 +414,8 @@ namespace UnityMcp {
                         var detail = string.IsNullOrEmpty(serverRoot) ? "" : $" It serves: {serverRoot}.";
                         Debug.LogWarning($"[UnityMcp] Server on port {_port} rejected this connection ({reason}).{detail} Set different HTTP/IPC ports for this project in Window > Unity MCP Server.");
                     }
+                    // This endpoint belongs to another project - don't advertise it
+                    MainThreadDispatcher.Enqueue(EndpointBeacon.Delete);
                     return;
                 }
 

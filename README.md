@@ -42,9 +42,22 @@ git submodule add https://github.com/Singtaa/UnityMCP.git Packages/com.singtaa.u
 ## Quick Start
 
 1. Install the package
-2. Open Window > Unity MCP Server
-3. The server starts automatically when Unity opens
-4. Configure your AI assistant to connect to `http://127.0.0.1:5173/mcp`
+2. Open the project once in Unity (the server starts automatically and deploys the stdio launcher to `~/.unity-mcp/stdio.js`)
+3. Register the launcher with Claude Code - **once per machine, not per project**:
+
+```bash
+# macOS / Linux
+claude mcp add --scope user --transport stdio unity -- node ~/.unity-mcp/stdio.js
+
+# Windows
+claude mcp add --scope user --transport stdio unity -- node "%USERPROFILE%\.unity-mcp\stdio.js"
+```
+
+That's the entire setup. Every Claude Code session started inside any Unity project on the machine now routes to that project's own editor automatically - no ports, no tokens, no per-project configuration. Run multiple editors side by side; each session finds its own. While an editor is closed or reloading, tools return a clear error and recover on their own.
+
+How it works: each editor writes a per-session endpoint beacon (`Temp/UnityMcp_Endpoint.json` - removed by Unity on quit, so it can never go stale), and the launcher resolves the session's Unity project (via `CLAUDE_PROJECT_DIR`, or by walking up from the working directory; `UNITY_MCP_PROJECT` overrides both) and proxies MCP to that project's live endpoint.
+
+Other MCP clients can either use the same stdio launcher or connect over HTTP directly (see below).
 
 ## Configuration
 
@@ -67,7 +80,7 @@ Each open project runs its own server on its own port pair, so multiple Editors 
 2. The next project detects the ports are taken, asks the running server which project it belongs to (`bridge.identify`), and auto-allocates the next free pair (e.g. 5174/52101)
 3. Allocated ports are persisted per-machine, so endpoints stay stable across sessions
 
-Point each AI assistant at the project's own endpoint (shown in Window > Unity MCP Server) with that project's own auth token. The server also validates project identity on every bridge connection, so an Editor can never take over a server belonging to a different project - even with misconfigured ports.
+The stdio launcher (see Quick Start) routes each Claude Code session to its own project automatically, so none of this needs manual attention. Clients connecting over raw HTTP instead should use the project's own endpoint (shown in Window > Unity MCP Server) with that project's own auth token. The server also validates project identity on every bridge connection, so an Editor can never take over a server belonging to a different project - even with misconfigured ports.
 
 If you start the Node server manually (`node src/server.js`), set `MCP_PROJECT_ROOT` to the project path so Editors can identify it; without it, the server accepts whichever project connects first.
 
