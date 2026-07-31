@@ -235,7 +235,7 @@ namespace UnityMcp {
                 }
 
                 // Register callbacks
-                var callbacks = new TestCallbacks(state, api);
+                var callbacks = new TestCallbacks(state, api, testMode);
                 api.RegisterCallbacks(callbacks);
 
                 // Execute tests
@@ -407,7 +407,7 @@ namespace UnityMcp {
                 }
 
                 // Register callbacks
-                var callbacks = new TestCallbacks(state, api);
+                var callbacks = new TestCallbacks(state, api, testMode);
                 api.RegisterCallbacks(callbacks);
 
                 // Execute tests
@@ -633,10 +633,31 @@ namespace UnityMcp {
         class TestCallbacks : ICallbacks {
             readonly TestRunState _state;
             readonly TestRunnerApi _api;
+            readonly TestMode _runMode;
 
-            public TestCallbacks(TestRunState state, TestRunnerApi api) {
+            public TestCallbacks(TestRunState state, TestRunnerApi api, TestMode runMode) {
                 _state = state;
                 _api = api;
+                _runMode = runMode;
+            }
+
+            /// <summary>
+            /// Determines whether a finished test was an EditMode or PlayMode test.
+            /// ITestAdaptor.TestMode is only populated from the NUnit "platform" property
+            /// and propagated via SetParent; adaptors arriving through the result callbacks
+            /// often report default(TestMode) == 0, so the requested run mode is the reliable
+            /// source. Never infer from TestCaseCount - that is the number of cases under the
+            /// node (>= 1 for every real test), which labelled every result "PlayMode".
+            /// </summary>
+            static string ResolveTestMode(ITestAdaptor test, TestMode runMode) {
+                for (var node = test; node != null; node = node.Parent) {
+                    if (node.TestMode == TestMode.EditMode) return "EditMode";
+                    if (node.TestMode == TestMode.PlayMode) return "PlayMode";
+                }
+                // Unambiguous for a single-mode run; only a combined run can be undecidable.
+                if (runMode == TestMode.EditMode) return "EditMode";
+                if (runMode == TestMode.PlayMode) return "PlayMode";
+                return "Unknown";
             }
 
             public void RunStarted(ITestAdaptor testsToRun) {
@@ -693,7 +714,7 @@ namespace UnityMcp {
                     durationMs = result.Duration * 1000,
                     message = result.Message,
                     stackTrace = result.StackTrace,
-                    testMode = result.Test.TestCaseCount > 0 ? "PlayMode" : "EditMode"
+                    testMode = ResolveTestMode(result.Test, _runMode)
                 };
 
                 lock (_stateLock) {
