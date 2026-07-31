@@ -3,50 +3,32 @@
 [![Unity 2022.3+](https://img.shields.io/badge/Unity-2022.3%2B-blue.svg)](https://unity.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for Unity Editor, enabling AI assistants like Claude to interact with Unity projects.
+[MCP](https://modelcontextprotocol.io/) server for the Unity Editor. Lets AI agents like Claude Code inspect, manipulate, test, and screenshot your project.
 
-## Features
+## Highlights
 
-- **73 Tools** for manipulating scenes, GameObjects, components, prefabs, transforms, reflection, C# eval, capture, and more
-- **Zero-config Claude Code setup** - one click (or one command) per machine; every Unity project and editor then connects automatically, with no per-project ports or tokens
-- **MCP Resources** for live access to console logs, scene hierarchy, test results, and project files
-- **Auto-start Node.js server** - no manual setup required
-- **Editor Window** for monitoring, configuration, and Claude Code setup
-- **Full test coverage** with unit and integration tests
+- **73 tools**: scenes, GameObjects, components, prefabs, transforms, tests, reflection + decompilation, C# eval, UI capture
+- **Zero-config clients**: one click (or one command) per machine, then every project and editor connects automatically. No ports, no tokens, no per-project config
+- **Multi-editor safe**: each open project runs its own server, sessions route to the right one by themselves
+- **MCP resources**: console logs, scene hierarchy, test results, project files
+- Unity 2022.3+ (Unity 6 recommended), Node.js 18+
 
-## Requirements
+## Install
 
-- Unity 2022.3 LTS or later (Unity 6 recommended)
-- Node.js 18 or later
+Package Manager > `+` > Add package from git URL:
 
-## Installation
-
-### Direct `git clone`
-
-```bash
-cd YOUR_PROJECT/Packages
-git clone https://github.com/Singtaa/UnityMCP.git com.singtaa.unity-mcp
+```
+https://github.com/Singtaa/UnityMCP.git
 ```
 
-### Via Git URL (Package Manager)
+Or clone / submodule into `Packages/com.singtaa.unity-mcp`.
 
-1. Open Window > Package Manager
-2. Click the + button > Add package from git URL
-3. Enter: `https://github.com/Singtaa/UnityMCP.git`
+## Setup (once per machine)
 
-### Via git submodule
+1. Open the project in Unity. Server auto-starts, launcher deploys to `~/.unity-mcp/stdio.js`
+2. **Window > Unity MCP Server > Set up Claude Code**
 
-```bash
-git submodule add https://github.com/Singtaa/UnityMCP.git Packages/com.singtaa.unity-mcp
-```
-
-## Quick Start
-
-1. Install the package
-2. Open the project once in Unity (the server starts automatically and deploys the stdio launcher to `~/.unity-mcp/stdio.js`)
-3. Open **Window > Unity MCP Server** and click **Set up Claude Code** - done. This registers the launcher with Claude Code once per machine (user scope), never per project.
-
-Prefer the terminal? The button runs the equivalent of:
+Done. Terminal equivalent:
 
 ```bash
 # macOS / Linux
@@ -56,129 +38,57 @@ claude mcp add --scope user --transport stdio unity -- node ~/.unity-mcp/stdio.j
 claude mcp add --scope user --transport stdio unity -- node "%USERPROFILE%\.unity-mcp\stdio.js"
 ```
 
-That's the entire setup. Every Claude Code session started inside any Unity project on the machine now routes to that project's own editor automatically - no ports, no tokens, no per-project configuration. Run multiple editors side by side; each session finds its own. While an editor is closed or reloading, tools return a clear error and recover on their own.
+Every Claude Code session inside any Unity project now reaches that project's own editor. Multiple editors side by side: each session finds its own. Editor closed or mid-reload: tools return a clear error and recover on their own.
 
-How it works: each editor writes a per-session endpoint beacon (`Temp/UnityMcp_Endpoint.json` - removed by Unity on quit, so it can never go stale), and the launcher resolves the session's Unity project (via `CLAUDE_PROJECT_DIR`, or by walking up from the working directory; `UNITY_MCP_PROJECT` overrides both) and proxies MCP to that project's live endpoint.
+Under the hood: the editor writes a per-session beacon (`Temp/UnityMcp_Endpoint.json`, removed on quit, never stale). The launcher resolves the session's project (`CLAUDE_PROJECT_DIR`, else cwd walk-up, `UNITY_MCP_PROJECT` overrides both) and proxies MCP to that project's live endpoint.
 
-Other MCP clients can either use the same stdio launcher or connect over HTTP directly (see below).
+Other MCP clients: same launcher, or plain HTTP (endpoint + token shown in the window).
+
+## Tools
+
+| Group | Tools (`unity_` prefix) |
+|---|---|
+| Scene | `scene_list`, `scene_load`, `scene_save`, `scene_new`, `scene_close` |
+| GameObject | `gameobject_create`, `gameobject_find`, `gameobject_delete`, `gameobject_set_active`, `gameobject_set_parent`, `gameobject_rename`, `gameobject_duplicate` |
+| Component | `component_list`, `component_add`, `component_remove`, `component_set_enabled`, `component_get_properties`, `component_set_property` |
+| Transform | `transform_get`, `transform_set`, `transform_translate`, `transform_rotate`, `transform_look_at`, `transform_reset` |
+| Editor | `selection_get/set/focus`, `editor_execute_menu_item`, `editor_notification`, `editor_log`, `editor_get_state`, `editor_pause/step`, `undo_*`, `playmode_enter/exit` |
+| Prefab | `prefab_load`, `prefab_save`, `prefab_get_hierarchy`, `prefab_find_component` |
+| Test | `test_list`, `test_run`, `test_run_sync`, `test_get_results` |
+| Capture | `capture_panel`, `capture_game_view` |
+| Project & Assets | `project_list_files`, `project_read_text`, `project_write_text`, `assets_refresh`, `assets_import`, `assets_find` |
+| Reflection | `reflection_search_types`, `reflection_get_type_info`, `reflection_get_method_info`, `reflection_get_public_api`, `reflection_get_assemblies`, `reflection_decompile`, `reflection_invoke_static` |
+| Eval | `eval` |
+
+Notable:
+
+- `unity_eval`: compile + run a C# snippet in the editor, no domain reload. Expression form returns its value, statement form uses `return`. Common usings imported, leading `using` lines hoisted. Bundled Roslyn (C# 9 ceiling). First call warms up for a few seconds, then tens of ms per compile
+- `unity_capture_panel`: renders a UI Toolkit `PanelSettings` to PNG offscreen, no scene chrome, works in edit and play mode. Auto-detects the active `UIDocument`
+- `unity_assets_find`: Project-window query syntax (`t:Material`, `t:Prefab ui`, `l:MyLabel`), optional folder scoping, capped results with total count
+- `unity_reflection_decompile`: full C# source of any loaded type or method
+- Quirks: wait ~1s after a domain reload before test tools; `unity_capture_game_view` is play-mode-only on Unity 6.3+
+
+## Resources
+
+`unity://console/logs` · `unity://hierarchy` · `unity://hierarchy/{scene}` · `unity://tests/results` · `unity://project/files`
 
 ## Configuration
 
-Settings are stored in `ProjectSettings/McpSettings.json`:
+`ProjectSettings/McpSettings.json` (meant to be committed): HTTP port 5173, IPC port 52100, auto-start, auth token.
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| HTTP Port | 5173 | Port for MCP HTTP server |
-| IPC Port | 52100 | Port for Unity-Node TCP bridge |
-| Auto Start | true | Start server on Unity launch |
-| Auth Enabled | true | Require bearer token authentication |
+Ports taken by another project's server? A free pair is auto-allocated and stored per-machine in `UserSettings/McpPortOverride.json` (gitignored), so port shuffles never reach the team. Project identity is validated on every bridge connection: an editor can never adopt another project's server, even with misconfigured ports.
 
-The `McpSettings.json` ports are the team-preferred defaults (the file is meant to be committed). If they're taken when the server starts (typically by another Unity project's MCP server), a free port pair is allocated automatically and stored per-machine in `UserSettings/McpPortOverride.json` (gitignored), so one machine's port shuffle never gets committed to the team. Changing ports manually in the MCP Server window updates the shared settings and clears the local override. The window always shows the project's current endpoint URL.
+Manual server start: `node src/server.js` with `MCP_PROJECT_ROOT` set to the project path.
 
-## Multiple Unity Editors
+## Works with Unity CLI
 
-Each open project runs its own server on its own port pair, so multiple Editors can be used side by side, each with its own MCP endpoint:
+Complementary, not competing:
 
-1. The first project gets the default ports (HTTP 5173 / IPC 52100)
-2. The next project detects the ports are taken, asks the running server which project it belongs to (`bridge.identify`), and auto-allocates the next free pair (e.g. 5174/52101)
-3. Allocated ports are persisted per-machine, so endpoints stay stable across sessions
-
-The stdio launcher (see Quick Start) routes each Claude Code session to its own project automatically, so none of this needs manual attention. Clients connecting over raw HTTP instead should use the project's own endpoint (shown in Window > Unity MCP Server) with that project's own auth token. The server also validates project identity on every bridge connection, so an Editor can never take over a server belonging to a different project - even with misconfigured ports.
-
-If you start the Node server manually (`node src/server.js`), set `MCP_PROJECT_ROOT` to the project path so Editors can identify it; without it, the server accepts whichever project connects first.
-
-## Available Tools
-
-### Scene Management
-- `unity_scene_list` - List all loaded scenes
-- `unity_scene_load` - Load a scene
-- `unity_scene_save` - Save scene(s)
-- `unity_scene_new` - Create a new scene
-- `unity_scene_close` - Close a scene
-
-### GameObject Operations
-- `unity_gameobject_create` - Create GameObjects (with optional primitives)
-- `unity_gameobject_find` - Find GameObjects by name, tag, or path
-- `unity_gameobject_delete` - Delete GameObjects
-- `unity_gameobject_set_active` - Enable/disable GameObjects
-- `unity_gameobject_set_parent` - Reparent GameObjects
-- `unity_gameobject_rename` - Rename GameObjects
-- `unity_gameobject_duplicate` - Duplicate GameObjects
-
-### Component Management
-- `unity_component_list` - List components on a GameObject
-- `unity_component_add` - Add components
-- `unity_component_remove` - Remove components
-- `unity_component_set_enabled` - Enable/disable components
-- `unity_component_get_properties` - Get component properties
-- `unity_component_set_property` - Set component properties
-
-### Transform Operations
-- `unity_transform_get` - Get position/rotation/scale
-- `unity_transform_set` - Set position/rotation/scale
-- `unity_transform_translate` - Move by delta
-- `unity_transform_rotate` - Rotate by euler angles
-- `unity_transform_look_at` - Orient toward target
-- `unity_transform_reset` - Reset to identity
-
-### Editor Operations
-- `unity_selection_get/set/focus` - Editor selection
-- `unity_editor_execute_menu_item` - Execute menu commands
-- `unity_editor_notification` - Show notifications
-- `unity_editor_log` - Log to console
-- `unity_editor_get_state` - Get editor state
-- `unity_editor_pause/step` - Playmode control
-- `unity_undo_*` - Undo/redo operations
-
-### Prefab Operations
-- `unity_prefab_load` - Load a prefab asset for inspection/editing
-- `unity_prefab_save` - Save changes to a prefab
-- `unity_prefab_get_hierarchy` - Get full prefab hierarchy
-- `unity_prefab_find_component` - Find component within prefab by path
-
-### Testing
-- `unity_test_list` - List available tests (returns structured JSON with `status` field)
-- `unity_test_run` - Run tests asynchronously, returns `runId` for polling
-- `unity_test_run_sync` - Start EditMode tests (not truly sync; poll `get_results`)
-- `unity_test_get_results` - Get test results by `runId`
-
-> **Note:** After domain reload (script recompilation), wait ~1 second before calling test tools. If `unity_test_list` returns `status: "not_ready"`, you can still run tests directly with `unity_test_run` (without filter) and see all tests in the results.
-
-### Capture
-- `unity_capture_panel` - Render a UI Toolkit `PanelSettings` to a PNG (returned as an MCP `image` content block). Renders to an off-screen `RenderTexture` so the output has no Scene chrome. Auto-detects the active panel via `UIDocument`s in loaded scenes if `panelPath` is omitted.
-- `unity_capture_game_view` - Capture the Game view to a PNG. Uses `ScreenCapture.CaptureScreenshotAsTexture` in play mode.
-
-> **Note:** `unity_capture_game_view` only works in play mode in Unity 6.3+ (`PlayModeView.targetTexture` is not exposed via reflection in edit mode). `unity_capture_panel` works in both modes.
-
-### Project & Assets
-- `unity_project_list_files` - List project files
-- `unity_project_read_text` - Read text files
-- `unity_project_write_text` - Write text files
-- `unity_assets_refresh` - Refresh AssetDatabase
-- `unity_assets_import` - Import specific assets
-- `unity_assets_find` - Type-aware asset search (`AssetDatabase.FindAssets`): `t:Material`, `t:Prefab ui`, `l:MyLabel`, optional folder scoping, capped results with total count
-
-### Reflection & Decompilation
-- `unity_reflection_search_types` - Search for types by name pattern across all assemblies
-- `unity_reflection_get_type_info` - Get detailed structured JSON data about a type's members
-- `unity_reflection_get_method_info` - Get method overloads with full parameter details
-- `unity_reflection_get_public_api` - Get concise C# interface stub (best for quick API overview)
-- `unity_reflection_get_assemblies` - List all loaded assemblies
-- `unity_reflection_decompile` - Decompile type/method to C# source code
-- `unity_reflection_invoke_static` - Invoke parameterless static methods/properties
-
-### Eval
-- `unity_eval` - Compile and run a C# snippet in the Editor (no domain reload). Expression snippets return their value (`Selection.activeGameObject.name`); statement snippets use `return`. Common Unity/System namespaces are imported by default and leading `using` lines are hoisted. Uses the Roslyn bundled with the editor (C# 9 ceiling); first call in a session takes a few seconds, subsequent compiles run in tens of milliseconds. Prefer dedicated tools when one exists - eval covers the long tail.
-
-## MCP Resources
-
-| Resource URI | Description |
-|--------------|-------------|
-| `unity://console/logs` | Live console output |
-| `unity://hierarchy` | Scene hierarchy |
-| `unity://hierarchy/{scene}` | Specific scene hierarchy |
-| `unity://tests/results` | Latest test results |
-| `unity://project/files` | Project file tree |
+- Unity CLI owns editor lifecycle: installs, `unity open`, builds, CI
+- UnityMCP owns the live editor session: UI capture, decompilation, eval, test loops, zero-config routing
+- Typical agent loop: `unity open <project>` via CLI, editor boots, server + beacon come up, launcher connects. No config on either side
+- CLI-launched editors run unfocused / in the background. UnityMCP is built and tested for exactly that (background-safe startup, retry through domain reloads)
+- No port or tool-name conflicts. Register both
 
 ## Architecture
 
@@ -205,26 +115,14 @@ If you start the Node server manually (`node src/server.js`), set `MCP_PROJECT_R
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Each open project runs its own Node server; the launcher is the shared front door that routes every session to the right one.
+Each open project runs its own Node server. The launcher is the shared front door that routes every session to the right one.
 
 ## Development
 
-### Running Tests
-
-Open Window > General > Test Runner and run:
-- **EditMode** tests for unit and integration tests
-- **PlayMode** tests for runtime behavior
-
-The Node-side tests (stdio launcher project resolution, beacon parsing, retry classification) run with `npm test` inside `Server~/`.
-
-### Building the Node Server
-
-The Node.js server is in `Server~/`. Dependencies are installed automatically on first run.
+- Unity tests: Window > General > Test Runner (EditMode + PlayMode)
+- Launcher tests: `npm test` in `Server~/`
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Contributing
-
-Contributions are welcome! Please read our contributing guidelines and submit PRs to the main branch.
+MIT. See [LICENSE](LICENSE).
