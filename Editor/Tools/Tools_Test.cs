@@ -30,6 +30,8 @@ namespace UnityMcp {
         [InitializeOnLoadMethod]
         static void OnDomainReload() {
             _lastDomainReloadTime = EditorApplication.timeSinceStartup;
+            RestoreRunState();
+            ReattachInflightRunCallbacks();
             _cachedEditModeRoot = null;
             _cachedPlayModeRoot = null;
             if (_cacheApi != null) {
@@ -71,6 +73,80 @@ namespace UnityMcp {
 
         static bool IsTestFrameworkStabilizing() {
             return EditorApplication.timeSinceStartup - _lastDomainReloadTime < DomainReloadStabilizationSeconds;
+        }
+
+        // Entering Play Mode triggers a domain reload, which wipes every static in this class -
+        // including _lastRunState. A PlayMode run would therefore always report "no_run" by the
+        // time its results were asked for. Mirror the state into SessionState, which survives
+        // domain reloads and is cleared when the editor quits.
+        const string RunStateSessionKey = "UnityMcp.Tools_Test.runState";
+
+        /// <summary>
+        /// Writes _lastRunState to SessionState. Caller must hold _stateLock.
+        /// </summary>
+        static void PersistRunState() {
+            try {
+                SessionState.SetString(RunStateSessionKey,
+                    _lastRunState == null ? "" : JsonConvert.SerializeObject(_lastRunState));
+            } catch (Exception e) {
+                Debug.LogWarning($"[McpBridge] Could not persist test run state: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Makes the state a live callback is mutating the canonical one, then mirrors it.
+        /// A reload replaces _lastRunState with a deserialized copy, so a callback that
+        /// survived would otherwise be appending to an object nobody reads.
+        /// Caller must hold _stateLock.
+        /// </summary>
+        static void SyncAndPersist(TestRunState state) {
+            if (state == null) return;
+            // Never let a stale run clobber a newer one.
+            if (_lastRunState != null && _lastRunState.runId != state.runId) return;
+            _lastRunState = state;
+            PersistRunState();
+        }
+
+        /// <summary>
+        /// Re-registers ICallbacks for a run that is still in flight across a domain reload.
+        /// TestRunnerApi callbacks live in the managed domain, so entering (and leaving) Play
+        /// Mode destroys them along with everything else - without this, a PlayMode run starts,
+        /// the domain reloads, and no TestFinished/RunFinished ever reaches us again.
+        /// </summary>
+        static void ReattachInflightRunCallbacks() {
+            TestRunState inflight;
+            lock (_stateLock) {
+                inflight = _lastRunState != null && _lastRunState.isRunning ? _lastRunState : null;
+            }
+            if (inflight == null) return;
+
+            // Defer: the test framework is not ready to accept registrations this early
+            // in the reload.
+            EditorApplication.delayCall += () => {
+                try {
+                    var api = ScriptableObject.CreateInstance<TestRunnerApi>();
+                    api.RegisterCallbacks(new TestCallbacks(inflight, api, inflight.runMode));
+                } catch (Exception e) {
+                    Debug.LogWarning($"[McpBridge] Could not re-attach test callbacks: {e.Message}");
+                }
+            };
+        }
+
+        /// <summary>
+        /// Restores _lastRunState from SessionState after a domain reload.
+        /// </summary>
+        static void RestoreRunState() {
+            var json = SessionState.GetString(RunStateSessionKey, "");
+            if (string.IsNullOrEmpty(json)) return;
+            try {
+                var restored = JsonConvert.DeserializeObject<TestRunState>(json);
+                if (restored == null || restored.results == null) return;
+                lock (_stateLock) {
+                    _lastRunState = restored;
+                }
+            } catch (Exception e) {
+                Debug.LogWarning($"[McpBridge] Could not restore test run state: {e.Message}");
+            }
         }
 
         // MARK: Tool Handlers
@@ -184,11 +260,13 @@ namespace UnityMcp {
                     runId = Guid.NewGuid().ToString(),
                     isRunning = true,
                     startTime = DateTime.UtcNow,
-                    results = new List<TestResultInfo>()
+                    results = new List<TestResultInfo>(),
+                    runMode = testMode
                 };
 
                 lock (_stateLock) {
                     _lastRunState = state;
+                    PersistRunState();
                 }
 
                 var api = ScriptableObject.CreateInstance<TestRunnerApi>();
@@ -356,11 +434,13 @@ namespace UnityMcp {
                     runId = Guid.NewGuid().ToString(),
                     isRunning = true,
                     startTime = DateTime.UtcNow,
-                    results = new List<TestResultInfo>()
+                    results = new List<TestResultInfo>(),
+                    runMode = testMode
                 };
 
                 lock (_stateLock) {
                     _lastRunState = state;
+                    PersistRunState();
                 }
 
                 var api = ScriptableObject.CreateInstance<TestRunnerApi>();
@@ -534,6 +614,7 @@ namespace UnityMcp {
             public DateTime? endTime;
             public List<TestResultInfo> results;
             public int totalTestCount; // Populated when run starts
+            public TestMode runMode;   // Needed to re-attach callbacks after a domain reload
         }
 
         class TestResultInfo {
@@ -664,6 +745,7 @@ namespace UnityMcp {
                 var count = CountLeafTests(testsToRun);
                 lock (_stateLock) {
                     _state.totalTestCount = count;
+                    SyncAndPersist(_state);
                 }
                 Debug.Log($"[McpBridge] Test run started: {_state.runId}, {count} tests to run");
             }
@@ -685,6 +767,7 @@ namespace UnityMcp {
                 lock (_stateLock) {
                     _state.isRunning = false;
                     _state.endTime = DateTime.UtcNow;
+                    SyncAndPersist(_state);
                 }
 
                 Debug.Log($"[McpBridge] Test run finished: {_state.runId}");
@@ -719,6 +802,7 @@ namespace UnityMcp {
 
                 lock (_stateLock) {
                     _state.results.Add(info);
+                    SyncAndPersist(_state);
                 }
             }
         }
