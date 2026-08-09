@@ -7,13 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-07-30
+## [1.1.0]: 2026-07-30
 
 ### Added
 
 - **"Set up Claude Code" button** in Window > Unity MCP Server: one click registers the stdio launcher with Claude Code at user scope (once per machine). Resolves the claude binary from known install locations (native installer, legacy local install, Homebrew, npm-under-nvm, with a login-shell lookup as last resort) and invokes it directly, since GUI-launched Unity doesn't inherit the user's shell PATH. Idempotent: re-running replaces the existing entry. The launcher also now fails fast with an instructive error when a session has no Unity project at all, instead of holding the client for the full retry window.
 
-- **Zero-config client setup via stdio launcher.** Register once per machine (`claude mcp add --scope user --transport stdio unity -- node ~/.unity-mcp/stdio.js`) and every Claude Code session in any Unity project routes to that project's own editor - no per-project endpoints, ports, or tokens. Each editor writes a per-session beacon (`Temp/UnityMcp_Endpoint.json`, self-cleaning on quit) on bridge connect and deploys the self-contained launcher (`Server~/src/stdio.js`) to the stable path `~/.unity-mcp/stdio.js` (the package itself may live under a version-dependent `Library/PackageCache` path). The launcher resolves the session's project (`UNITY_MCP_PROJECT` > `CLAUDE_PROJECT_DIR` > working-directory walk-up), answers the MCP handshake locally, and proxies to the project's HTTP endpoint. It never exits on Unity-side failure (Claude Code does not restart stdio servers): connection-refused requests retry against a re-read beacon through domain reloads, while requests that may have reached the server are never replayed (tool calls are not idempotent). The beacon is removed when a foreign server rejects the bridge or the server is stopped. Manual HTTP configuration remains supported for other clients.
+- **Zero-config client setup via stdio launcher.** Register once per machine (`claude mcp add --scope user --transport stdio unity -- node ~/.unity-mcp/stdio.js`) and every Claude Code session in any Unity project routes to that project's own editor: no per-project endpoints, ports, or tokens. Each editor writes a per-session beacon (`Temp/UnityMcp_Endpoint.json`, self-cleaning on quit) on bridge connect and deploys the self-contained launcher (`Server~/src/stdio.js`) to the stable path `~/.unity-mcp/stdio.js` (the package itself may live under a version-dependent `Library/PackageCache` path). The launcher resolves the session's project (`UNITY_MCP_PROJECT` > `CLAUDE_PROJECT_DIR` > working-directory walk-up), answers the MCP handshake locally, and proxies to the project's HTTP endpoint. It never exits on Unity-side failure (Claude Code does not restart stdio servers): connection-refused requests retry against a re-read beacon through domain reloads, while requests that may have reached the server are never replayed (tool calls are not idempotent). The beacon is removed when a foreign server rejects the bridge or the server is stopped. Manual HTTP configuration remains supported for other clients.
 
 - **`unity_assets_find` tool**: type-aware asset search wrapping `AssetDatabase.FindAssets` with Project-window query syntax (`t:Material`, `t:Prefab ui`, `l:MyLabel`), optional folder scoping (invalid folders are rejected up front instead of silently matching nothing), and a result cap (default 200) with the full match count reported.
 
@@ -21,15 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Multi-editor support**: multiple Unity Editors (different projects) can now run MCP servers side by side on the same machine, each with its own endpoint.
   - **Project identity handshake**: the launching Editor passes `MCP_PROJECT_ROOT` to the Node server. The TCP bridge hub answers a new `bridge.identify` probe (directly, no Unity round-trip) so an Editor can ask "whose server is on this port?" before adopting it, and rejects `bridge.hello` from a different project with `bridge.reject` instead of replacing the bridge. The C# client surfaces rejections as a rate-limited console warning.
-  - **Automatic port allocation**: when the configured IPC port is owned by another project's server (or an unrelated process, e.g. Vite on 5173), a free HTTP/IPC port pair at the same offset (e.g. 5174/52101) is allocated and used for a dedicated server. Allocations are stored per-machine in `UserSettings/McpPortOverride.json` (gitignored) - never in the team-shared `ProjectSettings/McpSettings.json`, whose ports remain the preferred defaults - so one machine's port shuffle can't get committed and drift the team's endpoints. Manual port changes clear the local override. The `EADDRINUSE` startup fallback also verifies the occupant's identity and retries once on fresh ports instead of blindly adopting it. Free-port checks bind with `ExclusiveAddressUse` to avoid `SO_REUSEADDR` false-frees, and a non-responding listener gets a short grace re-probe before being treated as foreign (mid-startup/shutdown races).
+  - **Automatic port allocation**: when the configured IPC port is owned by another project's server (or an unrelated process, e.g. Vite on 5173), a free HTTP/IPC port pair at the same offset (e.g. 5174/52101) is allocated and used for a dedicated server. Allocations are stored per-machine in `UserSettings/McpPortOverride.json` (gitignored), never in the team-shared `ProjectSettings/McpSettings.json`, whose ports remain the preferred defaults, so one machine's port shuffle can't get committed and drift the team's endpoints. Manual port changes clear the local override. The `EADDRINUSE` startup fallback also verifies the occupant's identity and retries once on fresh ports instead of blindly adopting it. Free-port checks bind with `ExclusiveAddressUse` to avoid `SO_REUSEADDR` false-frees, and a non-responding listener gets a short grace re-probe before being treated as foreign (mid-startup/shutdown races).
   - `serverInfo.title` includes the project folder name so MCP clients can tell servers apart; the MCP Server window shows the live endpoint URL and keeps port fields in sync with auto-allocated values.
   - **One-time migration** for updating with the Editor open: a running pre-update server (which predates the identify handshake) is recognized via the legacy EditorPrefs PID and stopped, so the project keeps its configured ports instead of drifting to an allocated pair and orphaning the old process. The legacy machine-global lock file is also cleaned up.
 
 ### Fixed
 
-- **`unity_capture_panel` blank image in edit mode.** In Unity 6's render-graph pipeline the panel's `RenderTreeManager` is created only by the repaint-phase updater (`UIRRepaintUpdater.Update`), which nothing invokes outside play mode - so `Panel.Render()` silently drew nothing. The capture path now runs the panel's repaint updater (idempotent, same call the play-mode frame loop makes) before rendering, making edit-mode captures work; play-mode behavior is unchanged.
+- **`unity_capture_panel` blank image in edit mode.** In Unity 6's render-graph pipeline the panel's `RenderTreeManager` is created only by the repaint-phase updater (`UIRRepaintUpdater.Update`), which nothing invokes outside play mode, so `Panel.Render()` silently drew nothing. The capture path now runs the panel's repaint updater (idempotent, same call the play-mode frame loop makes) before rendering, making edit-mode captures work; play-mode behavior is unchanged.
 
-- **Cross-project interference with multiple Editors open.** Three machine-global mechanisms made "last Editor wins": the active-client lock file lived in the system temp directory (now `Temp/UnityMcp_ActiveClient.lock` inside the project, per-project by construction and cleaned up by Unity on quit); the server PID was stored in machine-wide `EditorPrefs`, letting one Editor reattach to - and kill on quit - another project's server (now `SessionState`, scoped to the Editor instance); and a server whose port was already in use was adopted as "external" without checking which project it served (now identity-checked via `bridge.identify`).
+- **Cross-project interference with multiple Editors open.** Three machine-global mechanisms made "last Editor wins": the active-client lock file lived in the system temp directory (now `Temp/UnityMcp_ActiveClient.lock` inside the project, per-project by construction and cleaned up by Unity on quit); the server PID was stored in machine-wide `EditorPrefs`, letting one Editor reattach to, and kill on quit, another project's server (now `SessionState`, scoped to the Editor instance); and a server whose port was already in use was adopted as "external" without checking which project it served (now identity-checked via `bridge.identify`).
 - Leaked half-alive Node process when only the IPC port collided at startup (bridge hub logged `EADDRINUSE` but the HTTP server kept running). The residual process is now killed before adopting an external server or retrying.
 
 - Compile errors on Unity 6.5, where the `InstanceID` APIs (`GetInstanceID`, `EditorUtility.InstanceIDToObject`) become hard errors in favor of 64-bit `EntityId`. All usage now goes through `EntityIdCompat`, which uses `EntityId` on 6000.4+ and falls back to `InstanceID` on older versions (down to 2022.3). `FindCompat` similarly wraps the deprecated `FindObjectsByType(FindObjectsSortMode)` overloads. **Object ids now cross the MCP wire as JSON strings**: `EntityId` values exceed JavaScript's 2^53 safe-integer range, so raw JSON numbers get silently corrupted by the Node relay (verified live on 6000.5: `unity_component_set_enabled` by id failed until the switch to strings). Inputs accept both string and number; ids remain session-scoped as before.
@@ -41,11 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Capture tools** for grabbing the rendered output as PNG (returned as MCP image content blocks):
-  - `unity_capture_panel` - Render a UI Toolkit `PanelSettings` to an off-screen `RenderTexture` and return the PNG. Works reliably in play mode (no Scene chrome, ideal for OneJS UI feedback loops). Auto-detects the active `PanelSettings` from `UIDocument`s in loaded scenes if `panelPath` is omitted. **Known limitation:** in edit mode the first capture after `targetTexture` is reassigned renders a blank texture; use play mode for now.
-  - `unity_capture_game_view` - Capture the Game view to PNG. Uses `ScreenCapture.CaptureScreenshotAsTexture` in play mode. **Known limitation:** edit-mode capture is not supported in Unity 6.3+ because `PlayModeView.targetTexture` is not accessible via reflection in this version.
+  - `unity_capture_panel`: Render a UI Toolkit `PanelSettings` to an off-screen `RenderTexture` and return the PNG. Works reliably in play mode (no Scene chrome, ideal for OneJS UI feedback loops). Auto-detects the active `PanelSettings` from `UIDocument`s in loaded scenes if `panelPath` is omitted. **Known limitation:** in edit mode the first capture after `targetTexture` is reassigned renders a blank texture; use play mode for now.
+  - `unity_capture_game_view`: Capture the Game view to PNG. Uses `ScreenCapture.CaptureScreenshotAsTexture` in play mode. **Known limitation:** edit-mode capture is not supported in Unity 6.3+ because `PlayModeView.targetTexture` is not accessible via reflection in this version.
 - **Image content block** support in `ContentBlock` (`data` + `mimeType` fields, omitted from JSON when null so existing text tools are unaffected). New helpers: `ToolResultUtil.Image` and `ToolResultUtil.ImageWithText`.
 
-## [1.0.1] - 2026-03-04
+## [1.0.1]: 2026-03-04
 
 ### Fixed
 
@@ -54,10 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Prefab tools** for editing prefab assets:
-  - `unity_prefab_load` - Load prefab for inspection/editing
-  - `unity_prefab_save` - Save prefab changes
-  - `unity_prefab_get_hierarchy` - Get full prefab hierarchy with components
-  - `unity_prefab_find_component` - Find component by child path and type
+  - `unity_prefab_load`: Load prefab for inspection/editing
+  - `unity_prefab_save`: Save prefab changes
+  - `unity_prefab_get_hierarchy`: Get full prefab hierarchy with components
+  - `unity_prefab_find_component`: Find component by child path and type
 - **ObjectReference support** in `unity_component_set_property`:
   - Set references by instanceId (integer)
   - Set references by assetPath (string)
@@ -74,7 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated tool descriptions to clarify async nature and polling requirements
   - Note: `unity_test_list` may not work in Unity 6000.x beta; `unity_test_run` works reliably
 
-## [1.0.0] - 2025-01-XX
+## [1.0.0]: 2025-01-XX
 
 ### Added
 
@@ -93,11 +93,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Play mode control (enter, exit)
   - Console log access
 - **4 MCP Resources** for read-only access to Unity state:
-  - `unity://console/logs` - Console output
-  - `unity://hierarchy` - Scene hierarchy
-  - `unity://tests/results` - Test results
-  - `unity://project/files` - Project file tree
-- **Auto-start Node.js server** - Server starts automatically when Unity opens
+  - `unity://console/logs`. Console output
+  - `unity://hierarchy`. Scene hierarchy
+  - `unity://tests/results`. Test results
+  - `unity://project/files`. Project file tree
+- **Auto-start Node.js server**: Server starts automatically when Unity opens
 - **Editor Window** (`Window > Unity MCP Server`) for monitoring and configuration
 - **Project-level settings** stored in `ProjectSettings/McpSettings.json`
 - Multi-layered zombie thread prevention for domain reload safety

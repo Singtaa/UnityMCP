@@ -118,7 +118,7 @@ namespace UnityMcp {
                 }
             }
 
-            // Also check parent paths - if parent is ignored, children are too
+            // Also check parent paths: if parent is ignored, children are too
             // (unless there's a negation pattern)
             if (!ignored) {
                 var lastSlash = p.LastIndexOf('/');
@@ -174,7 +174,7 @@ namespace UnityMcp {
                             if (i < glob.Length && glob[i] == '/') i++; // Skip trailing /
                             continue;
                         } else {
-                            // Just ** without slashes - match everything
+                            // Just ** without slashes: match everything
                             sb.Append(".*");
                             i += 2;
                             continue;
@@ -189,7 +189,7 @@ namespace UnityMcp {
                     sb.Append("[^/]");
                     i++;
                 } else if (c == '[') {
-                    // Character class - find closing ]
+                    // Character class: find closing ]
                     var end = glob.IndexOf(']', i + 1);
                     if (end > i) {
                         sb.Append(glob.Substring(i, end - i + 1));

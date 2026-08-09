@@ -39,7 +39,7 @@ namespace UnityMcp {
         // every dependency alongside it, which matches the editor's Mono domain. Newer
         // copies (e.g. Unity.Analyzers.Common, Roslyn 4.x) load but fail at emit time
         // because the editor domain's own System.Collections.Immutable wins assembly
-        // binding and lacks the span APIs Roslyn 4.x needs - the validation compile
+        // binding and lacks the span APIs Roslyn 4.x needs: the validation compile
         // catches that and falls through.
         static readonly string[] _candidates = {
             "Resources/Scripting/MonoBleedingEdge/lib/mono/msbuild/Current/bin/Roslyn", // macOS

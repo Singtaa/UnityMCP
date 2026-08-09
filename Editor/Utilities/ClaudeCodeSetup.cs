@@ -15,7 +15,7 @@ namespace UnityMcp {
     /// replaces the existing user-scope entry, so the action is idempotent.
     ///
     /// The claude binary is resolved from known install locations and invoked
-    /// directly - GUI-launched Unity doesn't inherit the user's shell PATH, and a
+    /// directly: GUI-launched Unity doesn't inherit the user's shell PATH, and a
     /// non-interactive login shell doesn't source .zshrc (where PATH additions
     /// usually live), so "run it through the shell" is NOT reliable here.
     /// </summary>

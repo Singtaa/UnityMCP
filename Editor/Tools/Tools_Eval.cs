@@ -11,7 +11,7 @@ using Newtonsoft.Json.Linq;
 namespace UnityMcp {
     /// <summary>
     /// MCP tool that compiles and executes a C# snippet in the editor via the bundled
-    /// Roslyn compiler (see RoslynCompiler) - no domain reload, runs on the main thread.
+    /// Roslyn compiler (see RoslynCompiler): no domain reload, runs on the main thread.
     ///
     /// Snippets are wrapped in a generated static class. The snippet is first tried as an
     /// expression (its value becomes the result); if that fails to compile it is retried

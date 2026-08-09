@@ -111,7 +111,7 @@ async function forwardOnce(beacon, msg) {
 }
 
 async function forwardWithRetry(msg) {
-    // No project resolved means no beacon can ever appear - fail fast instead of
+    // No project resolved means no beacon can ever appear: fail fast instead of
     // holding the client for the whole retry window
     if (!projectRoot) throw new Error(notRunningMessage())
 

@@ -16,11 +16,11 @@ namespace UnityMcp {
         static TestRunState _lastRunState;
         static readonly object _stateLock = new object();
 
-        // Domain reload tracking - tests aren't ready immediately after reload
+        // Domain reload tracking: tests aren't ready immediately after reload
         static double _lastDomainReloadTime;
         const double DomainReloadStabilizationSeconds = 1.0;
 
-        // Test list cache - RetrieveTestList may fire its callback asynchronously
+        // Test list cache: RetrieveTestList may fire its callback asynchronously
         // after domain reload, so we pre-warm the cache and use it as a fallback
         static ITestAdaptor _cachedEditModeRoot;
         static ITestAdaptor _cachedPlayModeRoot;
@@ -110,7 +110,7 @@ namespace UnityMcp {
         /// <summary>
         /// Re-registers ICallbacks for a run that is still in flight across a domain reload.
         /// TestRunnerApi callbacks live in the managed domain, so entering (and leaving) Play
-        /// Mode destroys them along with everything else - without this, a PlayMode run starts,
+        /// Mode destroys them along with everything else: without this, a PlayMode run starts,
         /// the domain reloads, and no TestFinished/RunFinished ever reaches us again.
         /// </summary>
         static void ReattachInflightRunCallbacks() {
@@ -196,7 +196,7 @@ namespace UnityMcp {
                 ScriptableObject.DestroyImmediate(api);
 
                 // If callback wasn't invoked, the test framework may not be ready
-                // Note: Unity 6000.x may have issues with RetrieveTestList - test running still works
+                // Note: Unity 6000.x may have issues with RetrieveTestList, test running still works
                 if (!receivedCallback) {
                     return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
                         status = "not_ready",
@@ -319,7 +319,7 @@ namespace UnityMcp {
                 // Execute tests
                 api.Execute(new ExecutionSettings(filter));
 
-                // Return immediately with run ID - user should poll for results
+                // Return immediately with run ID: user should poll for results
                 var testsToRun = filter.testNames?.Length ?? 0;
                 var response = new {
                     message = "Test run started.",
@@ -494,7 +494,7 @@ namespace UnityMcp {
                 api.Execute(new ExecutionSettings(filter));
 
                 // IMPORTANT: Unity's test runner callbacks run on the main thread via EditorApplication.update.
-                // We CANNOT block the main thread waiting for results - that would prevent callbacks from running.
+                // We CANNOT block the main thread waiting for results: that would prevent callbacks from running.
                 // Instead, we return immediately and let the user poll for results.
                 //
                 // The "sync" behavior is achieved by the MCP server waiting and polling unity.test.getResults
@@ -567,7 +567,7 @@ namespace UnityMcp {
             });
 
             if (!received[0]) {
-                // Callback didn't fire synchronously - fall back to cached test tree
+                // Callback didn't fire synchronously: fall back to cached test tree
                 var cached = mode == TestMode.EditMode ? _cachedEditModeRoot : _cachedPlayModeRoot;
                 if (cached != null) {
                     received[0] = true;
@@ -593,7 +593,7 @@ namespace UnityMcp {
             });
 
             if (!callbackReceived[0]) {
-                // Callback didn't fire synchronously - fall back to cached test tree
+                // Callback didn't fire synchronously: fall back to cached test tree
                 var cached = mode == TestMode.EditMode ? _cachedEditModeRoot : _cachedPlayModeRoot;
                 if (cached != null) {
                     callbackReceived[0] = true;
@@ -727,7 +727,7 @@ namespace UnityMcp {
             /// ITestAdaptor.TestMode is only populated from the NUnit "platform" property
             /// and propagated via SetParent; adaptors arriving through the result callbacks
             /// often report default(TestMode) == 0, so the requested run mode is the reliable
-            /// source. Never infer from TestCaseCount - that is the number of cases under the
+            /// source. Never infer from TestCaseCount: that is the number of cases under the
             /// node (>= 1 for every real test), which labelled every result "PlayMode".
             /// </summary>
             static string ResolveTestMode(ITestAdaptor test, TestMode runMode) {

@@ -56,7 +56,7 @@ const resourceToBridgeName = {
 
 /**
  * Parse a resource URI and extract any parameters.
- * @param {string} uri - The resource URI
+ * @param {string} uri: The resource URI
  * @returns {{ bridgeName: string, args: object } | null}
  */
 function parseResourceUri(uri) {

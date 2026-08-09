@@ -9,12 +9,12 @@ namespace UnityMcp {
     /// (Server~/src/stdio.js) so clients need zero per-project configuration.
     ///
     /// Two artifacts:
-    /// 1. Temp/UnityMcp_Endpoint.json - the live endpoint (url/token/pid) for THIS
+    /// 1. Temp/UnityMcp_Endpoint.json: the live endpoint (url/token/pid) for THIS
     ///    project. Temp/ is per-editor-session and removed by Unity on quit, so the
     ///    beacon cannot go stale across sessions. Rewritten on every bridge connect
     ///    (covers domain reloads and port changes); removed when a foreign server
     ///    rejects the bridge or the server is stopped.
-    /// 2. ~/.unity-mcp/stdio.js - a copy of the single-file launcher at a stable
+    /// 2. ~/.unity-mcp/stdio.js: a copy of the single-file launcher at a stable
     ///    machine path (the package itself may live under Library/PackageCache with
     ///    a version-dependent path). Clients register it once per machine:
     ///    claude mcp add --scope user unity -- node ~/.unity-mcp/stdio.js

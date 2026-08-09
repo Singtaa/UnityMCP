@@ -1,14 +1,14 @@
 "use strict"
 
 /**
- * BridgeHub - TCP server that communicates with Unity's MCP Bridge client.
+ * BridgeHub: TCP server that communicates with Unity's MCP Bridge client.
  *
  * ARCHITECTURE:
  * - Listens for TCP connections from Unity on a configurable port
  * - Uses newline-delimited JSON (NDJSON) for message framing
  * - Routes MCP tool calls to Unity and returns responses
  *
- * CRITICAL - ZOMBIE CLIENT PREVENTION:
+ * CRITICAL: ZOMBIE CLIENT PREVENTION:
  * Unity may have multiple processes (main editor + AssetImportWorkers) that all
  * try to connect. Additionally, during domain reloads, old background threads
  * may survive and attempt to reconnect.
@@ -108,7 +108,7 @@ class BridgeHub {
     }
 
     _onConnection(sock) {
-        // Don't immediately replace the bridge - wait for hello message validation
+        // Don't immediately replace the bridge: wait for hello message validation
         // This prevents zombie threads from hijacking the connection
 
         sock.setEncoding("utf8")

@@ -113,7 +113,7 @@ namespace UnityMcp {
         /// We check the IPC port since that's what Unity connects to.
         /// </summary>
         public static async Task<bool> CheckServerReachable() {
-            // Check IPC port (TCP bridge) - this is what Unity actually connects to
+            // Check IPC port (TCP bridge): this is what Unity actually connects to
             var ipcReachable = await IsPortInUse(McpSettings.EffectiveIpcPort);
             if (ipcReachable && !IsRunning) {
                 _externalServerDetected = true;
@@ -127,7 +127,7 @@ namespace UnityMcp {
         }
 
         /// <summary>
-        /// Periodic health check - call this to verify server is still running.
+        /// Periodic health check: call this to verify server is still running.
         /// If not, clears the external server flag so we can restart.
         /// </summary>
         public static async Task<bool> HealthCheck() {
@@ -311,7 +311,7 @@ namespace UnityMcp {
 
             try {
                 if (Directory.Exists(writablePath)) {
-                    // Hash changed means package was updated - delete everything including
+                    // Hash changed means package was updated: delete everything including
                     // node_modules so npm install picks up any dependency changes
                     Directory.Delete(writablePath, true);
                 }
@@ -441,11 +441,11 @@ namespace UnityMcp {
 
                 var completedTask = await Task.WhenAny(connectTask, timeoutTask);
                 if (completedTask == connectTask && client.Connected) {
-                    // Connection succeeded - port is in use by a listening server
+                    // Connection succeeded: port is in use by a listening server
                     if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Port {port} check: connected successfully, server is running");
                     return true;
                 }
-                // Timeout - treat as not in use
+                // Timeout: treat as not in use
                 if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Port {port} check: timeout, no server");
                 return false;
             } catch (System.Net.Sockets.SocketException ex) {
@@ -651,7 +651,7 @@ namespace UnityMcp {
                         // Check for port already in use error
                         if (!startupComplete && (e.Data.Contains("EADDRINUSE") || e.Data.Contains("address already in use"))) {
                             startupComplete = true;
-                            // Port is in use by another server - that's okay, mark as external
+                            // Port is in use by another server: that's okay, mark as external
                             if (McpSettings.VerboseLogging) Debug.Log("[UnityMcp] Port already in use by another server, treating as external");
                             _externalServerDetected = true;
                             startupTcs.TrySetResult(true);
@@ -738,7 +738,7 @@ namespace UnityMcp {
         }
 
         static void OnBeforeReload() {
-            // Don't stop the server on domain reload - let it keep running
+            // Don't stop the server on domain reload: let it keep running
             // The TCP client will reconnect after reload
         }
 

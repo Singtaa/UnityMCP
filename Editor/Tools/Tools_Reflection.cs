@@ -377,7 +377,7 @@ namespace UnityMcp {
         // MARK: GetPublicApi
         /// <summary>
         /// Returns a formatted C#-like public interface of a type.
-        /// Much more concise than GetTypeInfo - shows just the public API shape.
+        /// Much more concise than GetTypeInfo: shows just the public API shape.
         /// </summary>
         public static ToolResult GetPublicApi(JObject args) {
             var typeName = args.Value<string>("typeName");

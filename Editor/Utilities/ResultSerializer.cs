@@ -22,7 +22,7 @@ namespace UnityMcp {
             if (type.IsEnum)
                 return result.ToString();
 
-            // Unity Objects - return basic info
+            // Unity Objects: return basic info
             if (result is UnityEngine.Object unityObj) {
                 return new {
                     type = type.FullName,

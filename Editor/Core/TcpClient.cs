@@ -15,15 +15,15 @@ namespace UnityMcp {
     /// - Uses MainThreadDispatcher to execute tool calls on Unity's main thread
     /// - Implements automatic reconnection with exponential backoff
     ///
-    /// CRITICAL - ZOMBIE THREAD PREVENTION:
+    /// CRITICAL: ZOMBIE THREAD PREVENTION:
     /// This client includes multiple mechanisms to prevent "zombie" threads from old
     /// domain reloads from connecting and hijacking the Node server connection.
     /// </summary>
     public sealed class McpTcpClient : IDisposable {
-        // Static version counter - incremented each time a new client is created
+        // Static version counter: incremented each time a new client is created
         static volatile int _globalVersion = 0;
 
-        // Static lock file path - used to coordinate between clients across domain reloads
+        // Static lock file path: used to coordinate between clients across domain reloads
         // WITHIN this project. Lives in the project's Temp/ folder (per-project, survives
         // domain reloads, deleted by Unity on graceful quit) so multiple Unity Editors on
         // the same machine never invalidate each other's clients.
@@ -108,10 +108,10 @@ namespace UnityMcp {
             _port = port;
             _recvBuf = new byte[64 * 1024];
 
-            // Increment global version - this invalidates all older clients
+            // Increment global version: this invalidates all older clients
             _myVersion = Interlocked.Increment(ref _globalVersion);
 
-            // Claim the lock file - this marks us as the active client
+            // Claim the lock file: this marks us as the active client
             ClaimLockFile();
         }
 
@@ -129,7 +129,7 @@ namespace UnityMcp {
             // This handles the race condition where the file hasn't been created yet
             try {
                 if (!System.IO.File.Exists(LockFilePath)) {
-                    // Try to claim it - we might be the first client after cleanup
+                    // Try to claim it: we might be the first client after cleanup
                     ClaimLockFile();
                     return true;
                 }
@@ -313,7 +313,7 @@ namespace UnityMcp {
 
             Debug.Log($"[UnityMcp] Bridge connected");
             SendHello();
-            // Beacon + launcher deploy touch Unity APIs (settings, PackageInfo) - main thread only
+            // Beacon + launcher deploy touch Unity APIs (settings, PackageInfo): main thread only
             MainThreadDispatcher.Enqueue(EndpointBeacon.OnBridgeConnected);
         }
 
@@ -414,7 +414,7 @@ namespace UnityMcp {
                         var detail = string.IsNullOrEmpty(serverRoot) ? "" : $" It serves: {serverRoot}.";
                         Debug.LogWarning($"[UnityMcp] Server on port {_port} rejected this connection ({reason}).{detail} Set different HTTP/IPC ports for this project in Window > Unity MCP Server.");
                     }
-                    // This endpoint belongs to another project - don't advertise it
+                    // This endpoint belongs to another project: don't advertise it
                     MainThreadDispatcher.Enqueue(EndpointBeacon.Delete);
                     return;
                 }

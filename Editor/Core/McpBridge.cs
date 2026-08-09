@@ -32,7 +32,7 @@ namespace UnityMcp {
                 return;
             }
 
-            // Start immediately - we're already on main thread during domain reload
+            // Start immediately: we're already on main thread during domain reload
             try {
                 EnsureStarted();
             } catch (Exception e) {
@@ -89,7 +89,7 @@ namespace UnityMcp {
         }
 
         static async void OnServerUnreachable() {
-            // Server might have died - run health check and possibly restart
+            // Server might have died: run health check and possibly restart
             var stillRunning = await NodeProcessManager.HealthCheck();
             if (!stillRunning && McpSettings.AutoStart) {
                 if (McpSettings.VerboseLogging) Debug.Log("[UnityMcp] Server died, attempting restart...");
