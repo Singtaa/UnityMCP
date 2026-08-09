@@ -311,7 +311,7 @@ namespace UnityMcp {
 
             try {
                 if (Directory.Exists(writablePath)) {
-                    // Hash changed means package was updated — delete everything including
+                    // Hash changed means package was updated - delete everything including
                     // node_modules so npm install picks up any dependency changes
                     Directory.Delete(writablePath, true);
                 }
@@ -350,7 +350,7 @@ namespace UnityMcp {
             // Use Unity's PackageInfo API to get the real physical path.
             // This correctly resolves git URL installs (Library/PackageCache/),
             // local installs (Packages/), and embedded packages.
-            // Note: Packages/<name> is a virtual path remapped by Unity's patched Mono —
+            // Note: Packages/<name> is a virtual path remapped by Unity's patched Mono -
             // Directory.Exists() returns true but the OS can't access it for Process.Start.
             var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(NodeProcessManager).Assembly);
             if (packageInfo != null) return packageInfo.resolvedPath;

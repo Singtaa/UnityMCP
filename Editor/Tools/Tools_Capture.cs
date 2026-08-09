@@ -110,7 +110,7 @@ namespace UnityMcp {
                 var runtimePanel = GetRuntimePanel(panel);
                 EnsurePanelRenderTree(runtimePanel);
 
-                // Prefer direct RenderPanel(panel, restoreState=true) when accessible — it bypasses the offscreen-list
+                // Prefer direct RenderPanel(panel, restoreState=true) when accessible - it bypasses the offscreen-list
                 // filtering that can skip freshly-reassigned panels on the first frame.
                 if (runtimePanel != null && _renderPanel != null) {
                     _renderPanel.Invoke(null, new[] { runtimePanel, (object)true });
