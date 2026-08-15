@@ -56,6 +56,9 @@ namespace UnityMcp {
         // Copies the launcher to a stable per-machine path. Content-compared so it
         // only writes when the packaged copy changed; written via a temp file +
         // rename so a launcher reading it mid-deploy never sees a torn file.
+        // Deployment is upgrade-only: with two editors open on different package
+        // versions, each bridge connect would otherwise flip the file back and
+        // forth, so a strictly newer deployed LAUNCHER_VERSION is left alone.
         // Returns the deployed launcher path, or null when deployment failed.
         internal static string EnsureLauncherDeployed() {
             try {
@@ -69,7 +72,14 @@ namespace UnityMcp {
                 var dest = Path.Combine(destDir, "stdio.js");
 
                 var srcText = File.ReadAllText(src);
-                if (File.Exists(dest) && File.ReadAllText(dest) == srcText) return dest;
+                if (File.Exists(dest)) {
+                    var destText = File.ReadAllText(dest);
+                    if (destText == srcText) return dest;
+
+                    var srcVersion = ParseLauncherVersion(srcText);
+                    var destVersion = ParseLauncherVersion(destText);
+                    if (srcVersion != null && destVersion != null && destVersion > srcVersion) return dest;
+                }
 
                 Directory.CreateDirectory(destDir);
                 var tmp = dest + ".tmp";
@@ -85,6 +95,14 @@ namespace UnityMcp {
                 Debug.LogWarning($"[UnityMcp] Failed deploying stdio launcher: {e.Message}");
                 return null;
             }
+        }
+
+        /// <summary>The launcher's LAUNCHER_VERSION constant, or null when unparseable.</summary>
+        internal static Version ParseLauncherVersion(string launcherText) {
+            if (string.IsNullOrEmpty(launcherText)) return null;
+            var match = System.Text.RegularExpressions.Regex.Match(
+                launcherText, "LAUNCHER_VERSION\\s*=\\s*\"(\\d+\\.\\d+\\.\\d+)\"");
+            return match.Success && Version.TryParse(match.Groups[1].Value, out var v) ? v : null;
         }
     }
 }

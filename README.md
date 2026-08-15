@@ -38,9 +38,9 @@ claude mcp add --scope user --transport stdio unity -- node ~/.unity-mcp/stdio.j
 claude mcp add --scope user --transport stdio unity -- node "%USERPROFILE%\.unity-mcp\stdio.js"
 ```
 
-Every Claude Code session inside any Unity project now reaches that project's own editor. Multiple editors side by side: each session finds its own. Editor closed or mid-reload: tools return a clear error and recover on their own.
+Every Claude Code session inside any Unity project now reaches that project's own editor. Multiple editors side by side: each session finds its own. Editor closed or mid-reload: tools return a clear error and recover on their own. Opening the editor mid-session works too: a session started editor-closed registers the tool list immediately (served from a per-project cache) and re-syncs live the moment the editor comes up, no client restart needed.
 
-Under the hood: the editor writes a per-session beacon (`Temp/UnityMcp_Endpoint.json`, removed on quit, never stale). The launcher resolves the session's project (`CLAUDE_PROJECT_DIR`, else cwd walk-up, `UNITY_MCP_PROJECT` overrides both) and proxies MCP to that project's live endpoint.
+Under the hood: the editor writes a per-session beacon (`Temp/UnityMcp_Endpoint.json`, removed on quit, never stale). The launcher resolves the session's project (`CLAUDE_PROJECT_DIR`, else cwd walk-up, `UNITY_MCP_PROJECT` overrides both) and proxies MCP to that project's live endpoint, re-reading the beacon on every request. It declares `tools.listChanged` and watches the beacon: when an editor appears (or a different one takes over the project), it emits `list_changed` notifications so clients re-fetch the tool and resource lists mid-session. Launcher deployment to `~/.unity-mcp/stdio.js` is upgrade-only by `LAUNCHER_VERSION`, so editors on different package versions never fight over the file.
 
 Other MCP clients: same launcher, or plain HTTP (endpoint + token shown in the window).
 

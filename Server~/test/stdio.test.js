@@ -6,7 +6,10 @@ const fs = require("fs")
 const os = require("os")
 const path = require("path")
 
-const { walkUpToUnityProject, findProjectRoot, readBeacon, isConnectionRefused } = require("../src/stdio.js")
+const {
+    walkUpToUnityProject, findProjectRoot, readBeacon, isConnectionRefused,
+    beaconKey, toolsCachePath, writeToolsCache, readToolsCache,
+} = require("../src/stdio.js")
 
 function makeUnityProject(root) {
     fs.mkdirSync(path.join(root, "ProjectSettings"), { recursive: true })
@@ -98,4 +101,51 @@ test("readBeacon returns null for missing or malformed beacon", () => {
 
     assert.strictEqual(readBeacon(null), null)
     fs.rmSync(root, { recursive: true, force: true })
+})
+
+test("beaconKey identifies an editor by url+pid, null when down", () => {
+    assert.strictEqual(beaconKey(null), null)
+
+    const up = { url: "http://127.0.0.1:5174/mcp", pid: 80952 }
+    assert.strictEqual(beaconKey(up), "http://127.0.0.1:5174/mcp|80952")
+
+    // A reopened editor keeps the port but never the pid: the key must change,
+    // because that transition is what triggers the client-side re-list.
+    const reopened = { url: "http://127.0.0.1:5174/mcp", pid: 81000 }
+    assert.notStrictEqual(beaconKey(reopened), beaconKey(up))
+
+    // A domain reload rewrites the beacon with identical url+pid: same key,
+    // so the watcher stays silent.
+    assert.strictEqual(beaconKey({ ...up }), beaconKey(up))
+})
+
+test("tools cache round-trips per project and rejects garbage", () => {
+    const root = tmpdir()
+    const cacheDir = tmpdir()
+    makeUnityProject(root)
+
+    assert.strictEqual(readToolsCache(root, cacheDir), null)
+
+    const result = { tools: [{ name: "unity_eval" }, { name: "unity_scene_load" }] }
+    writeToolsCache(root, result, cacheDir)
+    assert.deepStrictEqual(readToolsCache(root, cacheDir), result)
+
+    // Distinct projects with the same basename must not share an entry
+    const sibling = path.join(tmpdir(), path.basename(root))
+    fs.mkdirSync(sibling, { recursive: true })
+    makeUnityProject(sibling)
+    assert.notStrictEqual(toolsCachePath(root, cacheDir), toolsCachePath(sibling, cacheDir))
+    assert.strictEqual(readToolsCache(sibling, cacheDir), null)
+
+    // Malformed cache reads as no cache
+    fs.writeFileSync(toolsCachePath(root, cacheDir), "{not json")
+    assert.strictEqual(readToolsCache(root, cacheDir), null)
+
+    // No project: no cache path, and both operations are safe no-ops
+    assert.strictEqual(toolsCachePath(null, cacheDir), null)
+    writeToolsCache(null, result, cacheDir)
+    assert.strictEqual(readToolsCache(null, cacheDir), null)
+
+    fs.rmSync(root, { recursive: true, force: true })
+    fs.rmSync(cacheDir, { recursive: true, force: true })
 })

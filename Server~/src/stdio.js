@@ -21,15 +21,29 @@
 // domain reload, so connection-refused errors are retried against a freshly
 // re-read beacon until a deadline. It exits only when stdin closes.
 //
+// Sessions heal without a client restart: a session may start before its
+// editor is open (tools/list fails, the client registers zero tools). The
+// launcher declares tools.listChanged and watches the beacon; when an editor
+// comes up (or a different one takes over), it emits list_changed
+// notifications so the client re-fetches the tool and resource lists
+// mid-session. A per-project tools/list cache under ~/.unity-mcp/cache/
+// additionally answers the initial list from the last known set while the
+// editor is still closed.
+//
 // Self-contained on purpose (Node >= 18 builtins only): the editor copies this
 // single file to ~/.unity-mcp/stdio.js, a stable path independent of where the
 // Unity package itself lives (Packages/ or Library/PackageCache/<hash>).
+// Deployment is upgrade-only (the editor compares LAUNCHER_VERSION), so two
+// editors running different package versions do not fight over the file.
 
+const crypto = require("crypto")
 const fs = require("fs")
+const os = require("os")
 const path = require("path")
 const readline = require("readline")
 
-const LAUNCHER_VERSION = "1.0.0"
+const LAUNCHER_VERSION = "1.1.0"
+const BEACON_WATCH_INTERVAL_MS = 1500
 const RETRY_WINDOW_MS = 20000
 const RETRY_DELAY_MS = 500
 const ATTEMPT_TIMEOUT_MS = 120000
@@ -65,6 +79,60 @@ function readBeacon(projectRoot) {
         // missing or mid-write: treated as "editor not up (yet)"
     }
     return null
+}
+
+// MARK: Tools cache
+// The last successful tools/list result per project, so a session that starts
+// with the editor closed still registers the full tool set immediately (calls
+// error gracefully until the editor is up). Best-effort on every path.
+function defaultCacheDir() {
+    return path.join(os.homedir(), ".unity-mcp", "cache")
+}
+
+function toolsCachePath(root, dir = defaultCacheDir()) {
+    if (!root) return null
+    const resolved = path.resolve(root)
+    const hash = crypto.createHash("sha1").update(resolved).digest("hex").slice(0, 12)
+    return path.join(dir, `${path.basename(resolved)}-${hash}-tools.json`)
+}
+
+function writeToolsCache(root, result, dir = defaultCacheDir()) {
+    const dest = toolsCachePath(root, dir)
+    if (!dest || !result) return
+    try {
+        fs.mkdirSync(dir, { recursive: true })
+        // tmp + rename so a concurrent reader never sees a torn file
+        const tmp = `${dest}.${process.pid}.tmp`
+        fs.writeFileSync(tmp, JSON.stringify({
+            projectRoot: path.resolve(root),
+            savedAtUtc: new Date().toISOString(),
+            result,
+        }))
+        fs.renameSync(tmp, dest)
+    } catch {
+        // cache is an optimization, never an error
+    }
+}
+
+function readToolsCache(root, dir = defaultCacheDir()) {
+    const src = toolsCachePath(root, dir)
+    if (!src) return null
+    try {
+        const data = JSON.parse(fs.readFileSync(src, "utf8"))
+        if (data && data.result && Array.isArray(data.result.tools)) return data.result
+    } catch {
+        // missing or malformed: same as no cache
+    }
+    return null
+}
+
+// MARK: Beacon watching
+// Identity of the editor behind the beacon. A domain reload rewrites the
+// beacon with the same url+pid (no change); a newly opened editor has a new
+// pid (and possibly an auto-allocated port), which is what should trigger a
+// re-fetch of the tool list on the client.
+function beaconKey(beacon) {
+    return beacon ? `${beacon.url}|${beacon.pid}` : null
 }
 
 // MARK: Forwarding
@@ -139,8 +207,11 @@ function initializeResult(requestedVersion) {
     return {
         protocolVersion: requestedVersion || FALLBACK_PROTOCOL_VERSION,
         capabilities: {
-            tools: { listChanged: false },
-            resources: { subscribe: false, listChanged: false },
+            // listChanged: the launcher notifies when an editor comes up (or a
+            // different one takes over), so a session started editor-closed
+            // gains the tools mid-session instead of needing a client restart
+            tools: { listChanged: true },
+            resources: { subscribe: false, listChanged: true },
         },
         serverInfo: {
             name: "unity-mcp",
@@ -148,9 +219,29 @@ function initializeResult(requestedVersion) {
             version: LAUNCHER_VERSION,
         },
         instructions: projectRoot
-            ? `Unity MCP Server for the project at ${projectRoot}. Requires the project to be open in the Unity editor; tools return an error while the editor is closed or reloading.`
+            ? `Unity MCP Server for the project at ${projectRoot}. Requires the project to be open in the Unity editor; tools return an error while the editor is closed or reloading. Opening the editor mid-session is fine: the tool list refreshes automatically once it is up.`
             : "Unity MCP launcher: no Unity project was detected for this session. Tools will return errors until run from inside a Unity project.",
     }
+}
+
+// MARK: Beacon watcher (started once the client has initialized)
+let _lastBeaconKey = null
+let _watcherTimer = null
+
+function startBeaconWatcher() {
+    if (_watcherTimer || !projectRoot) return
+    _lastBeaconKey = beaconKey(readBeacon(projectRoot))
+    _watcherTimer = setInterval(() => {
+        const key = beaconKey(readBeacon(projectRoot))
+        if (key && key !== _lastBeaconKey) {
+            writeMessage({ jsonrpc: "2.0", method: "notifications/tools/list_changed" })
+            writeMessage({ jsonrpc: "2.0", method: "notifications/resources/list_changed" })
+        }
+        // Never cleared on disappearance: a quit editor that comes back is a new
+        // pid (notify), while a domain reload keeps url+pid (stay silent).
+        if (key) _lastBeaconKey = key
+    }, BEACON_WATCH_INTERVAL_MS)
+    if (_watcherTimer.unref) _watcherTimer.unref()
 }
 
 function writeMessage(msg) {
@@ -176,6 +267,7 @@ async function handleMessage(msg) {
             id,
             result: initializeResult(msg.params && msg.params.protocolVersion),
         })
+        startBeaconWatcher()
         return
     }
     if (method === "ping") {
@@ -191,11 +283,35 @@ async function handleMessage(msg) {
         return
     }
 
+    // Editor down with a known tool set: answer the list immediately from the
+    // cache rather than holding the client through the retry window. The
+    // beacon watcher triggers a real re-list once an editor is up.
+    if (method === "tools/list" && projectRoot && !readBeacon(projectRoot)) {
+        const cached = readToolsCache(projectRoot)
+        if (cached) {
+            writeMessage({ jsonrpc: "2.0", id, result: cached })
+            return
+        }
+    }
+
     try {
         const response = await forwardWithRetry(msg)
+        if (method === "tools/list" && response && response.result) {
+            writeToolsCache(projectRoot, response.result)
+        }
         if (response) writeMessage(response)
         else writeMessage({ jsonrpc: "2.0", id, result: {} })
     } catch (err) {
+        if (method === "tools/list") {
+            // Editor not up (yet): answer from the last known tool set so the
+            // client registers the tools now; calls error until the editor is up,
+            // and the beacon watcher triggers a real re-list once it is.
+            const cached = readToolsCache(projectRoot)
+            if (cached) {
+                writeMessage({ jsonrpc: "2.0", id, result: cached })
+                return
+            }
+        }
         const message = `Unity MCP: ${err.message}`
         if (method === "tools/call") {
             // Tool-result-shaped errors read better to the model than protocol errors
@@ -231,4 +347,8 @@ function main() {
 
 if (require.main === module) main()
 
-module.exports = { walkUpToUnityProject, findProjectRoot, readBeacon, isConnectionRefused }
+module.exports = {
+    walkUpToUnityProject, findProjectRoot, readBeacon, isConnectionRefused,
+    beaconKey, toolsCachePath, writeToolsCache, readToolsCache,
+    LAUNCHER_VERSION,
+}
