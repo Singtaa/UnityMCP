@@ -33,8 +33,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: Server~/package-lock.json
+          # No dependency cache on purpose. The tree here is a single package,
+          # so caching saves nothing, and setup-node's post-job save failed the
+          # whole Windows job trying to store a cache directory npm had not
+          # created. The tests themselves were passing underneath it.
 
       - run: npm ci
 
