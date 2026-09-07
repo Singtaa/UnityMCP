@@ -716,6 +716,10 @@ const _defs = [
                     type: "string",
                     description: "Comma-separated list of assembly names to include (e.g., 'OneJS.Tests')."
                 },
+                resultsPath: {
+                    type: "string",
+                    description: "Optional path for the NUnit XML results file, written when the run finishes (the same format `unity test --output` produces). Relative paths resolve against the project root."
+                },
             },
             additionalProperties: false,
         },
@@ -744,6 +748,10 @@ const _defs = [
                 assemblyFilter: {
                     type: "string",
                     description: "Comma-separated list of assembly names to include."
+                },
+                resultsPath: {
+                    type: "string",
+                    description: "Optional path for the NUnit XML results file, written when the run finishes."
                 },
             },
             additionalProperties: false,

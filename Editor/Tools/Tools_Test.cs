@@ -227,6 +227,7 @@ namespace UnityMcp {
             var testFilter = args.Value<string>("testFilter");
             var categoryFilter = args.Value<string>("categoryFilter");
             var assemblyFilter = args.Value<string>("assemblyFilter");
+            var resultsPath = args.Value<string>("resultsPath");
 
             if (EditorApplication.isCompiling) {
                 return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
@@ -261,7 +262,8 @@ namespace UnityMcp {
                     isRunning = true,
                     startTime = DateTime.UtcNow,
                     results = new List<TestResultInfo>(),
-                    runMode = testMode
+                    runMode = testMode,
+                    resultsPath = string.IsNullOrEmpty(resultsPath) ? null : System.IO.Path.GetFullPath(resultsPath)
                 };
 
                 lock (_stateLock) {
@@ -326,6 +328,7 @@ namespace UnityMcp {
                     runId = state.runId,
                     testMode = testModeStr,
                     testsToRun = testsToRun,
+                    resultsPath = state.resultsPath,
                     note = testsToRun == 0
                         ? "Running all tests (exact count available in getResults after run starts)."
                         : null,
@@ -402,6 +405,7 @@ namespace UnityMcp {
             var testFilter = args.Value<string>("testFilter");
             var categoryFilter = args.Value<string>("categoryFilter");
             var assemblyFilter = args.Value<string>("assemblyFilter");
+            var resultsPath = args.Value<string>("resultsPath");
 
             if (EditorApplication.isCompiling) {
                 return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
@@ -435,7 +439,8 @@ namespace UnityMcp {
                     isRunning = true,
                     startTime = DateTime.UtcNow,
                     results = new List<TestResultInfo>(),
-                    runMode = testMode
+                    runMode = testMode,
+                    resultsPath = string.IsNullOrEmpty(resultsPath) ? null : System.IO.Path.GetFullPath(resultsPath)
                 };
 
                 lock (_stateLock) {
@@ -507,6 +512,7 @@ namespace UnityMcp {
                     runId = state.runId,
                     testMode = testModeStr,
                     testsToRun = testsToRun,
+                    resultsPath = state.resultsPath,
                     note = testsToRun == 0
                         ? "Running all EditMode tests (exact count available in getResults after run starts). Poll getResults to check completion."
                         : "EditMode tests typically complete within a few seconds. Poll getResults to check completion."
@@ -615,6 +621,7 @@ namespace UnityMcp {
             public List<TestResultInfo> results;
             public int totalTestCount; // Populated when run starts
             public TestMode runMode;   // Needed to re-attach callbacks after a domain reload
+            public string resultsPath; // NUnit XML written on RunFinished, when requested
         }
 
         class TestResultInfo {
@@ -771,6 +778,23 @@ namespace UnityMcp {
                 }
 
                 Debug.Log($"[McpBridge] Test run finished: {_state.runId}");
+
+                /*
+                 * The Test Framework's own NUnit XML, the same file the `unity test`
+                 * CLI writes with --output. The JSON results carry no categories,
+                 * and the release graphics gate reads categories, so a PlayMode run
+                 * that the CLI cannot drive still needs this file.
+                 */
+                if (!string.IsNullOrEmpty(_state.resultsPath)) {
+                    try {
+                        var dir = System.IO.Path.GetDirectoryName(_state.resultsPath);
+                        if (!string.IsNullOrEmpty(dir)) System.IO.Directory.CreateDirectory(dir);
+                        TestRunnerApi.SaveResultToFile(result, _state.resultsPath);
+                        Debug.Log($"[McpBridge] Test results written to {_state.resultsPath}");
+                    } catch (Exception e) {
+                        Debug.LogWarning($"[McpBridge] Could not write test results to {_state.resultsPath}: {e.Message}");
+                    }
+                }
 
                 // Unregister and cleanup
                 try {

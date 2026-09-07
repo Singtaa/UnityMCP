@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `unity_test_run` and `unity_test_run_sync` take `resultsPath` and write the Test Framework's NUnit XML there when the run finishes, the file `unity test --output` produces, so a PlayMode run driven through MCP can feed tooling that reads categories
+
 ## [1.1.0]: 2026-07-30
 
 ### Added
