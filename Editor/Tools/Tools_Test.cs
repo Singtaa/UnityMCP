@@ -310,8 +310,9 @@ namespace UnityMcp {
                 }
 
                 if (!string.IsNullOrEmpty(assemblyFilter)) {
-                    filter.assemblyNames = assemblyFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(s => s.Trim()).ToArray();
+                    filter.assemblyNames = SplitAssemblyFilter(assemblyFilter);
+                    var refused = RefuseUnknownAssemblies(api, testMode, filter.assemblyNames);
+                    if (refused != null) return refused;
                 }
 
                 // Register callbacks
@@ -487,8 +488,9 @@ namespace UnityMcp {
                 }
 
                 if (!string.IsNullOrEmpty(assemblyFilter)) {
-                    filter.assemblyNames = assemblyFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(s => s.Trim()).ToArray();
+                    filter.assemblyNames = SplitAssemblyFilter(assemblyFilter);
+                    var refused = RefuseUnknownAssemblies(api, testMode, filter.assemblyNames);
+                    if (refused != null) return refused;
                 }
 
                 // Register callbacks
@@ -525,6 +527,94 @@ namespace UnityMcp {
         }
 
         // MARK: Helper Methods
+
+        /// <summary>
+        /// The assembly filter as the runner takes it: one name per entry,
+        /// without the ".dll" a test tree shows.
+        /// </summary>
+        static string[] SplitAssemblyFilter(string assemblyFilter) {
+            return assemblyFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Select(s => s.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? s.Substring(0, s.Length - 4) : s)
+                .Where(s => s.Length > 0)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// Refuses a run whose assembly filter names an assembly with no tests
+        /// in the requested mode, or returns null to let it go ahead.
+        ///
+        /// The runner matches assemblyNames exactly and says nothing about a
+        /// name that matched nothing: a run naming "OneJS.Tests,OneJSContainer.Tests"
+        /// ran only the first assembly and reported a clean pass, and a run of
+        /// the second name alone reported Passed with 0 cases. The real name was
+        /// OneJSContainer.Tests.PlayMode. A filter the caller wrote has to reach
+        /// something, the same rule testFilter's no_match already applies.
+        /// </summary>
+        static ToolResult RefuseUnknownAssemblies(TestRunnerApi api, TestMode testMode, string[] requested) {
+            var known = new HashSet<string>();
+            bool received = false;
+            foreach (var mode in new[] { TestMode.EditMode, TestMode.PlayMode }) {
+                if ((testMode & mode) == 0) continue;
+                var root = RetrieveTestRoot(api, mode);
+                if (root == null) continue;
+                received = true;
+                CollectTestAssemblies(root, known);
+            }
+
+            if (!received) {
+                ScriptableObject.DestroyImmediate(api);
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                    status = "not_ready",
+                    message = "Test framework did not respond when checking the assembly filter. This can happen right after domain reload.",
+                    hint = "Wait ~1 second and retry."
+                }, Formatting.Indented), true);
+            }
+
+            var unknown = UnknownAssemblyNames(known, requested);
+            if (unknown.Length == 0) return null;
+
+            ScriptableObject.DestroyImmediate(api);
+            return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                status = "no_match",
+                message = $"No {testMode} tests in assembly {string.Join(", ", unknown)}, so the run would pass without running it.",
+                available = known.OrderBy(n => n).ToArray(),
+                hint = "Name each test assembly exactly, as listed in 'available'."
+            }, Formatting.Indented), true);
+        }
+
+        /// <summary>
+        /// The requested names no known test assembly answers to, compared
+        /// exactly, as the runner compares them.
+        /// </summary>
+        public static string[] UnknownAssemblyNames(IEnumerable<string> known, IEnumerable<string> requested) {
+            var set = new HashSet<string>(known);
+            return requested.Where(n => !set.Contains(n)).Distinct().ToArray();
+        }
+
+        static void CollectTestAssemblies(ITestAdaptor node, HashSet<string> names) {
+            if (node.IsTestAssembly) {
+                names.Add(System.IO.Path.GetFileNameWithoutExtension(node.Name));
+                return;
+            }
+            if (!node.HasChildren) return;
+            foreach (var child in node.Children) CollectTestAssemblies(child, names);
+        }
+
+        /// <summary>
+        /// The test tree for one mode, or null when the framework has not
+        /// answered and nothing is cached.
+        /// </summary>
+        static ITestAdaptor RetrieveTestRoot(TestRunnerApi api, TestMode mode) {
+            ITestAdaptor found = null;
+            api.RetrieveTestList(mode, (rootTest) => {
+                if (rootTest == null) return;
+                found = rootTest;
+                if (mode == TestMode.EditMode) _cachedEditModeRoot = rootTest;
+                else _cachedPlayModeRoot = rootTest;
+            });
+            return found ?? (mode == TestMode.EditMode ? _cachedEditModeRoot : _cachedPlayModeRoot);
+        }
 
         /// <summary>
         /// Resolves partial test name filters to full test names.

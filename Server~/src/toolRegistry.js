@@ -714,7 +714,7 @@ const _defs = [
                 },
                 assemblyFilter: {
                     type: "string",
-                    description: "Comma-separated list of assembly names to include (e.g., 'OneJS.Tests')."
+                    description: "Comma-separated list of test assembly names to include, each exact (e.g., 'OneJS.Tests'). A name with no tests in the chosen mode refuses the run with no_match and lists the names that exist."
                 },
                 resultsPath: {
                     type: "string",
@@ -747,7 +747,7 @@ const _defs = [
                 },
                 assemblyFilter: {
                     type: "string",
-                    description: "Comma-separated list of assembly names to include."
+                    description: "Comma-separated list of test assembly names to include, each exact. A name with no tests in EditMode refuses the run with no_match and lists the names that exist."
                 },
                 resultsPath: {
                     type: "string",
