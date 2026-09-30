@@ -26,7 +26,7 @@ Or clone / submodule into `Packages/com.singtaa.unity-mcp`.
 ## Setup (once per machine)
 
 1. Open the project in Unity. Server auto-starts, launcher deploys to `~/.unity-mcp/stdio.js`
-2. **Window > Unity MCP Server > Set up Claude Code**
+2. **Window > Unity MCP Server**, then click **Set up Claude Code**
 
 Done. Terminal equivalent:
 
@@ -52,13 +52,14 @@ Other MCP clients: same launcher, or plain HTTP (endpoint + token shown in the w
 | GameObject | `gameobject_create`, `gameobject_find`, `gameobject_delete`, `gameobject_set_active`, `gameobject_set_parent`, `gameobject_rename`, `gameobject_duplicate` |
 | Component | `component_list`, `component_add`, `component_remove`, `component_set_enabled`, `component_get_properties`, `component_set_property` |
 | Transform | `transform_get`, `transform_set`, `transform_translate`, `transform_rotate`, `transform_look_at`, `transform_reset` |
-| Editor | `selection_get/set/focus`, `editor_execute_menu_item`, `editor_notification`, `editor_log`, `editor_get_state`, `editor_pause/step`, `undo_*`, `playmode_enter/exit` |
+| Editor | `selection_get/set/focus`, `editor_execute_menu_item`, `editor_notification`, `editor_log`, `editor_get_state`, `editor_pause/step`, `undo_*`, `redo_perform`, `playmode_enter/exit`, `console_logs`, `hierarchy_list`, `scripts_recompile`, `scripts_status` |
 | Prefab | `prefab_load`, `prefab_save`, `prefab_get_hierarchy`, `prefab_find_component` |
 | Test | `test_list`, `test_run`, `test_run_sync`, `test_get_results` |
 | Capture | `capture_panel`, `capture_game_view` |
-| Project & Assets | `project_list_files`, `project_read_text`, `project_write_text`, `assets_refresh`, `assets_import`, `assets_find` |
+| Project & Assets | `project_list_files`, `project_read_text`, `project_write_text`, `project_delete_file`, `assets_refresh`, `assets_import`, `assets_find` |
 | Reflection | `reflection_search_types`, `reflection_get_type_info`, `reflection_get_method_info`, `reflection_get_public_api`, `reflection_get_assemblies`, `reflection_decompile`, `reflection_invoke_static` |
 | Eval | `eval` |
+| Bridge | `bridge_ping`, `bridge_mainthread_ping`, `bridge_dispatcher_status` |
 
 Notable:
 
@@ -66,11 +67,13 @@ Notable:
 - `unity_capture_panel`: renders a UI Toolkit `PanelSettings` to PNG offscreen, no scene chrome, works in edit and play mode. Auto-detects the active `UIDocument`
 - `unity_assets_find`: Project-window query syntax (`t:Material`, `t:Prefab ui`, `l:MyLabel`), optional folder scoping, capped results with total count
 - `unity_reflection_decompile`: full C# source of any loaded type or method
+- `unity_test_run` / `unity_test_run_sync`: `resultsPath` writes the NUnit XML `unity test --output` produces; an `assemblyFilter` naming no assembly with tests in the chosen mode is refused (`no_match`) rather than reported as a pass
+- `unity_bridge_ping` answers from a background thread, `unity_bridge_mainthread_ping` only when the main-thread dispatcher runs: the pair tells a starved or blocked editor apart from a dead bridge
 - Quirks: wait ~1s after a domain reload before test tools; `unity_capture_game_view` is play-mode-only on Unity 6.3+
 
 ## Resources
 
-`unity://console/logs` · `unity://hierarchy` · `unity://hierarchy/{scene}` · `unity://tests/results` · `unity://project/files`
+`unity://console/logs` · `unity://hierarchy` · `unity://hierarchy/{sceneName}` · `unity://tests/results` · `unity://project/files` · `unity://project/files/{path}`
 
 ## Configuration
 
