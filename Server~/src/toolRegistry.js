@@ -760,7 +760,7 @@ const _defs = [
     {
         safeName: "unity_test_get_results",
         bridgeName: "unity.test.getResults",
-        description: "Get results from a test run. Returns status (running/completed), summary counts, and detailed results. Poll this after unity_test_run until status='completed'.",
+        description: "Get results from a test run. Returns status (running, completed, or completed_empty: finished having run no test, reported as an error), summary counts, and detailed results. Poll this after unity_test_run until status is not 'running'.",
         inputSchema: {
             type: "object",
             properties: {
