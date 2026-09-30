@@ -694,15 +694,15 @@ const _defs = [
     {
         safeName: "unity_test_run",
         bridgeName: "unity.test.run",
-        description: "Run Unity tests asynchronously. Returns a runId - poll unity_test_get_results to check status and get results. If status='stabilizing', wait ~1 second and retry.",
+        description: "Run Unity tests asynchronously. Returns a runId - poll unity_test_get_results to check status and get results. A finished run that ran no test reports status 'completed_empty' as an error. If status='stabilizing', wait ~1 second and retry.",
         inputSchema: {
             type: "object",
             properties: {
                 testMode: {
                     type: "string",
-                    enum: ["editmode", "playmode", "all"],
+                    enum: ["editmode", "playmode"],
                     default: "editmode",
-                    description: "Which test mode to run. PlayMode tests require entering Play Mode."
+                    description: "Which test mode to run. PlayMode tests require entering Play Mode. To cover both, start one run of each: a combined run executes EditMode only."
                 },
                 testFilter: {
                     type: "string",
@@ -710,7 +710,7 @@ const _defs = [
                 },
                 categoryFilter: {
                     type: "string",
-                    description: "Comma-separated list of test categories to include."
+                    description: "Comma-separated list of test categories to include, each exact. A category no test in the chosen mode carries refuses the run with no_match and lists the categories that exist."
                 },
                 assemblyFilter: {
                     type: "string",
@@ -743,7 +743,7 @@ const _defs = [
                 },
                 categoryFilter: {
                     type: "string",
-                    description: "Comma-separated list of test categories to include."
+                    description: "Comma-separated list of test categories to include, each exact. A category no EditMode test carries refuses the run with no_match."
                 },
                 assemblyFilter: {
                     type: "string",

@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `unity_test_run` and `unity_test_run_sync` refuse an `assemblyFilter` naming an assembly with no tests in the chosen mode (`no_match`, listing the names that exist), where a wrong name used to run nothing from it and report a pass
+- `unity_test_run` and `unity_test_run_sync` refuse a `categoryFilter` naming a category no test in the chosen mode carries (`no_match`)
+- `unity_test_get_results` reports a finished run that ran no test as `completed_empty`, an error, instead of `completed`
+
+### Removed
+- `unity_test_run`'s `testMode: "all"`, which ran only EditMode and reported the run complete; start one run per mode
 
 ## [1.1.0]: 2026-07-30
 

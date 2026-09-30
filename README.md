@@ -67,7 +67,7 @@ Notable:
 - `unity_capture_panel`: renders a UI Toolkit `PanelSettings` to PNG offscreen, no scene chrome, works in edit and play mode. Auto-detects the active `UIDocument`
 - `unity_assets_find`: Project-window query syntax (`t:Material`, `t:Prefab ui`, `l:MyLabel`), optional folder scoping, capped results with total count
 - `unity_reflection_decompile`: full C# source of any loaded type or method
-- `unity_test_run` / `unity_test_run_sync`: `resultsPath` writes the NUnit XML `unity test --output` produces; an `assemblyFilter` naming no assembly with tests in the chosen mode is refused (`no_match`) rather than reported as a pass
+- `unity_test_run` / `unity_test_run_sync`: `resultsPath` writes the NUnit XML `unity test --output` produces; an `assemblyFilter` or `categoryFilter` naming nothing in the chosen mode is refused (`no_match`) rather than reported as a pass, and a finished run that ran no test reports `completed_empty` as an error. `testMode` is `editmode` or `playmode`: start one run of each to cover both, since a combined run executes EditMode only
 - `unity_bridge_ping` answers from a background thread, `unity_bridge_mainthread_ping` only when the main-thread dispatcher runs: the pair tells a starved or blocked editor apart from a dead bridge
 - Quirks: wait ~1s after a domain reload before test tools; `unity_capture_game_view` is play-mode-only on Unity 6.3+
 

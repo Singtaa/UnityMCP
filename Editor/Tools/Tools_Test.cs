@@ -244,17 +244,17 @@ namespace UnityMcp {
             }
 
             try {
-                // Determine test mode
-                TestMode testMode;
-                if (testModeStr == "playmode") {
-                    testMode = TestMode.PlayMode;
-                } else if (testModeStr == "editmode") {
-                    testMode = TestMode.EditMode;
-                } else if (testModeStr == "all") {
-                    testMode = TestMode.EditMode | TestMode.PlayMode;
-                } else {
-                    return ToolResultUtil.Text($"Invalid testMode: {testModeStr}. Use 'editmode', 'playmode', or 'all'.", true);
+                var parsedMode = ParseRunMode(testModeStr);
+                if (parsedMode == null) {
+                    return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                        status = "invalid_mode",
+                        message = testModeStr == "all"
+                            ? "testMode 'all' is not supported: the Test Framework runs a combined run as EditMode only and reports it complete."
+                            : $"Invalid testMode: {testModeStr}.",
+                        hint = "Use 'editmode' or 'playmode'. To cover both, start one run of each."
+                    }, Formatting.Indented), true);
                 }
+                var testMode = parsedMode.Value;
 
                 // Create state for this run
                 var state = new TestRunState {
@@ -307,6 +307,8 @@ namespace UnityMcp {
                 if (!string.IsNullOrEmpty(categoryFilter)) {
                     filter.categoryNames = categoryFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
                         .Select(s => s.Trim()).ToArray();
+                    var refusedCategories = RefuseUnknownCategories(api, testMode, filter.categoryNames);
+                    if (refusedCategories != null) return refusedCategories;
                 }
 
                 if (!string.IsNullOrEmpty(assemblyFilter)) {
@@ -331,7 +333,7 @@ namespace UnityMcp {
                     testsToRun = testsToRun,
                     resultsPath = state.resultsPath,
                     note = testsToRun == 0
-                        ? "Running all tests (exact count available in getResults after run starts)."
+                        ? $"Running every {testModeStr} test the filters select (exact count available in getResults after the run starts)."
                         : null,
                     hint = "Use unity.test.getResults with this runId to check status and get results."
                 };
@@ -364,9 +366,13 @@ namespace UnityMcp {
                     }, Formatting.Indented));
                 }
 
+                var status = RunStatus(_lastRunState.isRunning, _lastRunState.results.Count);
                 var response = new {
                     runId = _lastRunState.runId,
-                    status = _lastRunState.isRunning ? "running" : "completed",
+                    status,
+                    message = status == "completed_empty"
+                        ? "The run finished without running a single test, so it proves nothing. Check the filters with unity_test_list."
+                        : null,
                     startTime = _lastRunState.startTime.ToString("o"),
                     endTime = _lastRunState.endTime?.ToString("o"),
                     durationMs = _lastRunState.endTime.HasValue
@@ -391,7 +397,7 @@ namespace UnityMcp {
                     }).ToList()
                 };
 
-                return ToolResultUtil.Text(JsonConvert.SerializeObject(response, Formatting.Indented));
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(response, Formatting.Indented), status == "completed_empty");
             }
         }
 
@@ -485,6 +491,8 @@ namespace UnityMcp {
                 if (!string.IsNullOrEmpty(categoryFilter)) {
                     filter.categoryNames = categoryFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
                         .Select(s => s.Trim()).ToArray();
+                    var refusedCategories = RefuseUnknownCategories(api, testMode, filter.categoryNames);
+                    if (refusedCategories != null) return refusedCategories;
                 }
 
                 if (!string.IsNullOrEmpty(assemblyFilter)) {
@@ -516,7 +524,7 @@ namespace UnityMcp {
                     testsToRun = testsToRun,
                     resultsPath = state.resultsPath,
                     note = testsToRun == 0
-                        ? "Running all EditMode tests (exact count available in getResults after run starts). Poll getResults to check completion."
+                        ? "Running every EditMode test the filters select (exact count available in getResults after the run starts). Poll getResults to check completion."
                         : "EditMode tests typically complete within a few seconds. Poll getResults to check completion."
                 };
 
@@ -527,6 +535,76 @@ namespace UnityMcp {
         }
 
         // MARK: Helper Methods
+
+        /// <summary>
+        /// The one mode a run executes, or null for anything else, "all" included.
+        /// The Test Framework runs a filter carrying EditMode | PlayMode as EditMode
+        /// only and reports it complete: 296 cases, status completed, not one
+        /// PlayMode entry. Two runs are the honest way to cover both.
+        /// </summary>
+        public static TestMode? ParseRunMode(string testModeStr) {
+            if (testModeStr == "playmode") return TestMode.PlayMode;
+            if (testModeStr == "editmode") return TestMode.EditMode;
+            return null;
+        }
+
+        /// <summary>
+        /// What GetResults reports. A run that finished having recorded no result
+        /// tested nothing, whichever filter or combination of filters caused it,
+        /// so it never reads as "completed".
+        /// </summary>
+        public static string RunStatus(bool isRunning, int resultCount) {
+            if (isRunning) return "running";
+            return resultCount == 0 ? "completed_empty" : "completed";
+        }
+
+        /// <summary>
+        /// The requested categories no test carries, compared exactly, as the
+        /// runner compares them.
+        /// </summary>
+        public static string[] UnknownCategoryNames(IEnumerable<string> known, IEnumerable<string> requested) {
+            var set = new HashSet<string>(known);
+            return requested.Where(n => !set.Contains(n)).Distinct().ToArray();
+        }
+
+        /// <summary>
+        /// Refuses a run whose category filter names a category no test in the
+        /// requested mode carries, or returns null to let it go ahead. The runner
+        /// says nothing about a category that matched nothing and reports the
+        /// empty run as a pass.
+        /// </summary>
+        static ToolResult RefuseUnknownCategories(TestRunnerApi api, TestMode testMode, string[] requested) {
+            var root = RetrieveTestRoot(api, testMode);
+            if (root == null) {
+                ScriptableObject.DestroyImmediate(api);
+                return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                    status = "not_ready",
+                    message = "Test framework did not respond when checking the category filter. This can happen right after domain reload.",
+                    hint = "Wait ~1 second and retry."
+                }, Formatting.Indented), true);
+            }
+
+            var known = new HashSet<string>();
+            CollectCategories(root, known);
+            var unknown = UnknownCategoryNames(known, requested);
+            if (unknown.Length == 0) return null;
+
+            ScriptableObject.DestroyImmediate(api);
+            return ToolResultUtil.Text(JsonConvert.SerializeObject(new {
+                status = "no_match",
+                message = $"No {testMode} test carries category {string.Join(", ", unknown)}, so the run would pass without running anything.",
+                available = known.OrderBy(n => n).ToArray(),
+                hint = "Name each category exactly, as listed in 'available'."
+            }, Formatting.Indented), true);
+        }
+
+        static void CollectCategories(ITestAdaptor node, HashSet<string> names) {
+            if (node.Categories != null) {
+                foreach (var category in node.Categories) names.Add(category);
+            }
+            if (!node.HasChildren) return;
+            foreach (var child in node.Children) CollectCategories(child, names);
+        }
 
         /// <summary>
         /// The assembly filter as the runner takes it: one name per entry,
