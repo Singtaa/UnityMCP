@@ -86,17 +86,35 @@ namespace UnityMcp {
             }
         }
 
-        public static string GetStatusJson() {
-            var now = DateTime.UtcNow;
-            var lastTicks = Interlocked.Read(ref _lastTickUtcTicks);
+        /// <summary>How long a main thread that has not ticked counts as stalled rather than between frames.</summary>
+        public const long StalledAfterMs = 1000;
 
-            long ageMs;
-            if (lastTicks <= 0) {
-                ageMs = -1;
-            } else {
-                var last = new DateTime(lastTicks, DateTimeKind.Utc);
-                ageMs = (long)Math.Max(0, (now - last).TotalMilliseconds);
-            }
+        /// <summary>Milliseconds since the last tick, or -1 before the first.</summary>
+        static long TickAgeMs() {
+            var lastTicks = Interlocked.Read(ref _lastTickUtcTicks);
+            if (lastTicks <= 0) return -1;
+            var last = new DateTime(lastTicks, DateTimeKind.Utc);
+            return (long)Math.Max(0, (DateTime.UtcNow - last).TotalMilliseconds);
+        }
+
+        /// <summary>
+        /// The reply to unity.bridge.ping, which the TCP thread answers. A bare
+        /// "pong" only says the socket is up: after a domain reload it arrives
+        /// seconds before the main thread runs anything, and an unfocused editor
+        /// can starve the main thread indefinitely. So past StalledAfterMs the
+        /// reply says how long the main thread has been gone and how many calls
+        /// wait on it. It still starts with "pong".
+        /// </summary>
+        public static string PingReply() => PingReply(TickAgeMs(), QueuedCount);
+
+        public static string PingReply(long tickAgeMs, int queued) {
+            if (tickAgeMs < 0) return $"pong, but the main thread has not run yet ({queued} calls waiting); tools wait for it";
+            if (tickAgeMs < StalledAfterMs) return "pong";
+            return $"pong, but the main thread has not run for {tickAgeMs} ms ({queued} calls waiting); tools wait for it";
+        }
+
+        public static string GetStatusJson() {
+            var ageMs = TickAgeMs();
 
             return "{"
                    + "\"installed\":" + (_installed ? "true" : "false") + ","

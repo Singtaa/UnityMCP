@@ -5,7 +5,7 @@ const _defs = [
     {
         safeName: "unity_bridge_ping",
         bridgeName: "unity.bridge.ping",
-        description: "Quick health check. Returns pong when Unity bridge is responsive.",
+        description: "Quick health check, answered off the main thread. Returns pong when the bridge is connected; when the main thread has not run for over a second (a domain reload, a busy or unfocused editor), the reply says so, and tools will wait for it.",
         inputSchema: { type: "object", properties: {}, additionalProperties: false },
     },
     {
