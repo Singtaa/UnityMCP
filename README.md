@@ -83,6 +83,8 @@ Ports taken by another project's server? A free pair is auto-allocated and store
 
 Manual server start: `node src/server.js` with `MCP_PROJECT_ROOT` set to the project path.
 
+A server the editor starts logs to `Logs/UnityMcpServer.log` in the project, rewritten each time it starts. One started by hand logs to its console.
+
 ## Works with Unity CLI
 
 Complementary, not competing:
@@ -91,7 +93,7 @@ Complementary, not competing:
 - UnityMCP owns the live editor session: UI capture, decompilation, eval, test loops, zero-config routing
 - Typical agent loop: `unity open <project>` via CLI, editor boots, server + beacon come up, launcher connects. No config on either side
 - CLI-launched editors run unfocused / in the background. UnityMCP is built and tested for exactly that (background-safe startup, retry through domain reloads)
-- No port or tool-name conflicts. Register both
+- No port or tool-name conflicts, but one entry name: Unity's `unity mcp configure claude` (or `codex`) writes its own `unity` entry over this package's. Register the launcher again after running it
 
 ## Architecture
 
@@ -123,7 +125,7 @@ Each open project runs its own Node server. The launcher is the shared front doo
 ## Development
 
 - Unity tests: Window > General > Test Runner (EditMode + PlayMode)
-- Launcher tests: `npm test` in `Server~/`
+- Launcher and server tests: `npm test` in `Server~/`
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ## License

@@ -85,6 +85,11 @@ namespace UnityMcp {
                     }
                 };
 
+                // Registered when the server started, by a domain that is gone now:
+                // without this, quitting after any reload left the server running.
+                EditorApplication.quitting -= OnEditorQuitting;
+                EditorApplication.quitting += OnEditorQuitting;
+
                 if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Reattached to server process (PID {savedPid})");
                 OnServerStarted?.Invoke();
                 return true;
@@ -594,6 +599,9 @@ namespace UnityMcp {
             return false;
         }
 
+        /// <summary>Where the server writes its log, rewritten each time it starts.</summary>
+        public static string ServerLogPath => Path.Combine(ProjectPaths.ProjectRoot, "Logs", "UnityMcpServer.log");
+
         static async Task<bool> StartServerAsync(bool isRetry = false) {
             try {
                 var psi = new ProcessStartInfo {
@@ -615,6 +623,9 @@ namespace UnityMcp {
                 psi.Environment["MCP_REQUIRE_AUTH"] = McpSettings.AuthEnabled ? "true" : "false";
                 psi.Environment["MCP_TOKEN"] = McpSettings.AuthToken;
                 psi.Environment["MCP_PROJECT_ROOT"] = ProjectPaths.ProjectRoot;
+                // The server logs here, not to the pipes below: nothing reads them after a
+                // domain reload, and on Windows a write to a full pipe stops the server.
+                psi.Environment["MCP_LOG_FILE"] = ServerLogPath;
 
                 _serverProcess = Process.Start(psi);
                 if (_serverProcess == null) {

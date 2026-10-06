@@ -428,7 +428,7 @@ namespace UnityMcp {
 
                     // TCP-thread ping (no main thread needed)
                     if (tool == "unity.bridge.ping") {
-                        SendResponse(id, ToolResultUtil.Text("pong"));
+                        SendResponse(id, ToolResultUtil.Text(MainThreadDispatcher.PingReply()));
                         return;
                     }
 

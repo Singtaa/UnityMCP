@@ -9,6 +9,7 @@ const { tools, toolNameToBridgeName } = require("./toolRegistry")
 const { resources, resourceTemplates, parseResourceUri } = require("./resourceRegistry")
 const { BridgeHub } = require("./bridgeHub")
 const { makeError, makeResult } = require("./jsonrpc")
+const log = require("./log")
 
 // ---- Extract config values ----
 const {
@@ -377,14 +378,14 @@ function start() {
     })
 
     server.listen(httpPort, httpHost, () => {
-        console.log(`[mcp] http listening on http://${httpHost}:${httpPort}/mcp`)
-        console.log(`[mcp] ipc bridge on tcp://${ipcHost}:${ipcPort}`)
-        console.log(`[mcp] project = ${projectRoot || "(unset - started manually?)"}`)
-        console.log(`[mcp] bridge timeout = ${bridgeTimeoutMs}ms`)
+        log.startup(`[mcp] http listening on http://${httpHost}:${httpPort}/mcp`)
+        log.startup(`[mcp] ipc bridge on tcp://${ipcHost}:${ipcPort}`)
+        log.startup(`[mcp] project = ${projectRoot || "(unset - started manually?)"}`)
+        log.startup(`[mcp] bridge timeout = ${bridgeTimeoutMs}ms`)
         if (authEnabled) {
             console.log(`[mcp] bearer auth ON, token = ${authToken}`)
         } else {
-            console.log("[mcp] bearer auth OFF")
+            log.startup("[mcp] bearer auth OFF")
         }
     })
 }

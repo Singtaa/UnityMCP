@@ -32,6 +32,7 @@
 
 const net = require("net")
 const crypto = require("crypto")
+const log = require("./log")
 
 function normalizeRoot(p) {
     if (!p) return ""
@@ -64,15 +65,15 @@ class BridgeHub {
         this._server = net.createServer((sock) => this._onConnection(sock))
 
         this._server.on("error", (err) => {
-            console.error(`[bridge] server error: ${err.code} - ${err.message}`)
+            log.startupError(`[bridge] server error: ${err.code} - ${err.message}`)
         })
 
         this._server.on("close", () => {
-            console.log(`[bridge] server closed`)
+            log.log(`[bridge] server closed`)
         })
 
         this._server.listen(this._port, this._host, () => {
-            console.log(`[bridge] listening on tcp://${this._host}:${this._port}`)
+            log.startup(`[bridge] listening on tcp://${this._host}:${this._port}`)
         })
     }
 
@@ -102,7 +103,7 @@ class BridgeHub {
 
             this._pending.set(id, { resolve, timer })
         })
-        console.log(`[bridge] -> call ${tool} id=${id}`);
+        log.log(`[bridge] -> call ${tool} id=${id}`)
         this._writeLine(msg)
         return p
     }
@@ -158,7 +159,7 @@ class BridgeHub {
                     // take over this server's bridge (happens when ports are misconfigured).
                     if (this._projectRoot && msg.projectRoot &&
                         normalizeRoot(msg.projectRoot) !== normalizeRoot(this._projectRoot)) {
-                        console.log(`[bridge] rejecting hello from different project: ${msg.projectRoot} (this server: ${this._projectRoot})`)
+                        log.log(`[bridge] rejecting hello from different project: ${msg.projectRoot} (this server: ${this._projectRoot})`)
                         const reject = { t: "bridge.reject", reason: "project-mismatch", serverProjectRoot: this._projectRoot }
                         try { thisSock.end(JSON.stringify(reject) + "\n") } catch { try { thisSock.destroy() } catch { } }
                         return
@@ -172,11 +173,11 @@ class BridgeHub {
                     const isNewer = newHelloUtc >= currentHelloUtc
                     const isSameClient = msg.clientId === this._lastClientId
 
-                    console.log(`[bridge] hello from clientId=${msg.clientId}, noExisting=${noExistingBridge}, isNewer=${isNewer}, isSame=${isSameClient}`)
+                    log.log(`[bridge] hello from clientId=${msg.clientId}, noExisting=${noExistingBridge}, isNewer=${isNewer}, isSame=${isSameClient}`)
 
                     if (noExistingBridge || isNewer || isSameClient) {
                         if (this._bridge && !this._bridge.destroyed) {
-                            console.log(`[bridge] replacing old connection (clientId=${this._lastClientId})`)
+                            log.log(`[bridge] replacing old connection (clientId=${this._lastClientId})`)
                             try { this._bridge.removeAllListeners(); this._bridge.destroy() } catch { }
                         }
 
@@ -186,10 +187,10 @@ class BridgeHub {
                         this._lastClientId = msg.clientId
                         this._lastHelloUtc = newHelloUtc
 
-                        console.log(`[bridge] connected: clientId=${msg.clientId}`)
+                        log.log(`[bridge] connected: clientId=${msg.clientId}`)
                     } else {
                         // Reject zombie connection with older timestamp
-                        console.log(`[bridge] rejecting zombie connection: clientId=${msg.clientId}`)
+                        log.log(`[bridge] rejecting zombie connection: clientId=${msg.clientId}`)
                         try { thisSock.destroy() } catch { }
                     }
                     return
@@ -249,7 +250,7 @@ class BridgeHub {
     _onClose() {
         if (!this._bridge) return
 
-        console.log("[bridge] disconnected")
+        log.log("[bridge] disconnected")
 
         try {
             this._bridge.destroy()
