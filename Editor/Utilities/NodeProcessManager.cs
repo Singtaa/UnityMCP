@@ -85,6 +85,11 @@ namespace UnityMcp {
                     }
                 };
 
+                // Registered when the server started, by a domain that is gone now:
+                // without this, quitting after any reload left the server running.
+                EditorApplication.quitting -= OnEditorQuitting;
+                EditorApplication.quitting += OnEditorQuitting;
+
                 if (McpSettings.VerboseLogging) Debug.Log($"[UnityMcp] Reattached to server process (PID {savedPid})");
                 OnServerStarted?.Invoke();
                 return true;
