@@ -36,7 +36,10 @@ namespace UnityMcp {
             // Domain reloads clear event handlers but preserve static fields
             _installed = true;
             _mainThreadId = Thread.CurrentThread.ManagedThreadId;
-            Interlocked.Exchange(ref _lastTickUtcTicks, DateTime.UtcNow.Ticks);
+            // Not ticked yet in this domain. Stamping the time here made the
+            // ping a plain "pong" for the first second after a reload, while
+            // Unity was still entering play mode and no tool could run.
+            Interlocked.Exchange(ref _lastTickUtcTicks, 0);
 
             EditorApplication.update -= Tick;
             EditorApplication.update += Tick;

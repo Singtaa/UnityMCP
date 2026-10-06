@@ -27,5 +27,13 @@ namespace UnityMcp.Tests {
         public void AMainThreadThatNeverRanIsSaidToBe() {
             StringAssert.Contains("has not run yet", MainThreadDispatcher.PingReply(-1, 1));
         }
+
+        // Install is what a domain reload runs. No editor tick can happen
+        // inside this method, so the main thread has not run since.
+        [Test]
+        public void AfterInstallThePingWaitsForTheFirstTick() {
+            MainThreadDispatcher.Install();
+            StringAssert.Contains("has not run yet", MainThreadDispatcher.PingReply());
+        }
     }
 }

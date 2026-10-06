@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `unity_test_run` and `unity_test_run_sync` take `resultsPath` and write the Test Framework's NUnit XML there when the run finishes, the file `unity test --output` produces, so a PlayMode run driven through MCP can feed tooling that reads categories
 
 ### Fixed
-- The editor answers again about 8 s sooner after a domain reload on Windows: the server logs to `Logs/UnityMcpServer.log` instead of a pipe nothing reads after a reload, where a full pipe stopped it
+- The editor answers again sooner after a domain reload: the server logs to `Logs/UnityMcpServer.log` instead of a pipe nothing reads after a reload, where on Windows a full pipe stopped it (about 8 s) and on macOS a closed one ended it, so the editor started a new one (about 2 s)
 - `unity_bridge_ping` says when the main thread has not run for over a second instead of a bare `pong`, which after a reload arrived before any tool could run
 - Quitting the editor after a domain reload stops the server instead of leaving it running
 - A fresh install no longer rewrites `Server~/package-lock.json`, which lacked the launcher's `bin` entry

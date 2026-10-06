@@ -4,8 +4,10 @@
 // state after every domain reload: the Editor reattaches by PID and never reads
 // the pipes again. Windows (and Linux) write to a pipe synchronously, so before
 // the server logged to MCP_LOG_FILE, a full pipe stopped it outright and each
-// play-mode entry spent about 8 s there. macOS writes pipes asynchronously, so
-// there this passes either way.
+// play-mode entry spent about 8 s there. On macOS the Editor closes the pipes
+// instead, and the next write to one ended the server with EPIPE: the Editor
+// then started a new server, and each play-mode entry spent about 2 s more
+// than with the server kept (4.9 s against 2.8 s, 6 Oct 2026).
 
 const { test } = require("node:test")
 const assert = require("node:assert")
@@ -73,7 +75,8 @@ function fakeBridge(port, projectRoot) {
     })
 }
 
-test("the server keeps answering while nobody reads its stdout", { timeout: 60000 }, async () => {
+/** Starts the server, then leaves its pipes as `leave` does, as a domain reload leaves them. */
+async function keepsAnswering(leave) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "unity-mcp-log-test-"))
     const logFile = path.join(root, "Logs", "UnityMcpServer.log")
     const [httpPort, ipcPort] = [await freePort(), await freePort()]
@@ -89,9 +92,7 @@ test("the server keeps answering while nobody reads its stdout", { timeout: 6000
     try {
         child.stdout.setEncoding("utf8")
         await Promise.all([waitForLine(child.stdout, "[bridge] listening"), waitForLine(child.stdout, "[mcp] http listening")])
-        // From here on, as after a domain reload, nothing reads either pipe.
-        child.stdout.pause()
-        child.stderr.pause()
+        leave(child)
 
         const url = `http://127.0.0.1:${httpPort}/mcp`
         bridge = await fakeBridge(ipcPort, root)
@@ -112,11 +113,22 @@ test("the server keeps answering while nobody reads its stdout", { timeout: 6000
         const ping = await rpc(url, { jsonrpc: "2.0", id: 1, method: "ping" }, 1000)
         assert.deepStrictEqual(ping.result, {})
 
+        assert.strictEqual(child.exitCode, null, "the server exited")
         assert.match(fs.readFileSync(logFile, "utf8"), /\[bridge\] -> call unity\.bridge\.ping/)
     } finally {
         bridge?.destroy()
-        child.kill()
-        await new Promise((ok) => child.once("exit", ok))
+        if (child.exitCode === null) {
+            child.kill()
+            await new Promise((ok) => child.once("exit", ok))
+        }
         fs.rmSync(root, { recursive: true, force: true })
     }
-})
+}
+
+// Windows: the pipes stay open and nothing reads them.
+test("the server keeps answering while nobody reads its stdout", { timeout: 60000 }, () =>
+    keepsAnswering((child) => { child.stdout.pause(); child.stderr.pause() }))
+
+// macOS: the pipes are closed.
+test("the server keeps answering once its stdout is closed", { timeout: 60000 }, () =>
+    keepsAnswering((child) => { child.stdout.destroy(); child.stderr.destroy() }))
